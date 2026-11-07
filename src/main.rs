@@ -2,6 +2,7 @@ mod app;
 mod cards;
 mod content;
 mod demo;
+mod history;
 mod input;
 mod rng;
 mod session;

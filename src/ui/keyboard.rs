@@ -155,7 +155,8 @@ pub fn render(
         .iter()
         .flatten()
         .find(|k| k.ch.is_some() && k.ch == want);
-    let avg = avg_ms(&app.progress.stats);
+    let stats = app.key_stats_now();
+    let avg = avg_ms(&stats);
     let mut lines = Vec::new();
     for (i, row) in keys.iter().enumerate() {
         if i > 0 && !compact {
@@ -170,7 +171,7 @@ pub fn render(
                 style = style.fg(color);
             }
             if let (true, Some(c)) = (opts.heatmap, k.ch)
-                && let Some(s) = app.progress.stats.get(&c).filter(|s| s.n >= MIN_SAMPLES)
+                && let Some(s) = stats.get(&c).filter(|s| s.n >= MIN_SAMPLES)
                 && weakness(Some(s), avg) > 1.4
             {
                 style = style

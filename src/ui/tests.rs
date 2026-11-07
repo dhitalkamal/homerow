@@ -344,3 +344,64 @@ fn settings_zoom_row_says_when_kitty_is_needed() {
     a.zoom_ok = true;
     assert!(!screen(&a, 100, 48).contains("needs kitty"));
 }
+
+#[test]
+fn progress_views_keep_each_mode_separate() {
+    use crate::history::View;
+    use crate::store::Round;
+    let (mut a, _d) = app();
+    for (mode, wpm) in [("base", 30), ("base", 42), ("code", 18), ("code", 22)] {
+        a.progress.add_round(
+            Round {
+                mode: mode.into(),
+                wpm,
+                acc: 96,
+                at_ms: NOW,
+            },
+            60_000,
+        );
+    }
+    go(&mut a, Mode::Progress);
+    a.progress_view = View::Base;
+    let s = screen(&a, 120, 40);
+    assert!(
+        s.contains("baseline") && s.contains("30") && s.contains("42"),
+        "{s}"
+    );
+    assert!(s.contains("+6"), "first 30, now (30+42)/2 = 36\n{s}");
+    a.progress_view = View::Code;
+    let s = screen(&a, 120, 40);
+    assert!(
+        s.contains("22") && !s.contains("42"),
+        "code best is its own\n{s}"
+    );
+}
+
+#[test]
+fn results_screen_best_is_for_the_same_mode() {
+    use crate::store::Round;
+    let (mut a, _d) = app();
+    a.progress.add_round(
+        Round {
+            mode: "base".into(),
+            wpm: 99,
+            acc: 98,
+            at_ms: NOW - 100_000,
+        },
+        60_000,
+    );
+    go(&mut a, Mode::Code);
+    let text: Vec<char> = a.session.text.clone();
+    let mut t = NOW - 60_000;
+    for ch in text {
+        if a.session.next_char() == Some(ch) {
+            a.handle(Input::Text(ch), t);
+            t += 150;
+        }
+    }
+    let s = screen(&a, 100, 40);
+    assert!(
+        !s.contains("best 99"),
+        "baseline best shown on a code result\n{s}"
+    );
+}

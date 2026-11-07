@@ -1,8 +1,10 @@
-// the progress tab: headline numbers, speed trend, weak keys, deck progress
-use super::{bold, dim};
+// the progress tab, one view at a time (all modes, baseline, weak keys, code):
+// where you started, where you are now, the trend, weak keys and decks
+use super::{ACCENT, bold, dim};
 use crate::app::App;
 use crate::cards::{Deck, known};
 use crate::content::CARDS;
+use crate::history::{self, BASE, CODE, KEYS, View};
 use crate::stats::{MIN_SAMPLES, avg_ms, weakness};
 use crate::store::{day_key, streak};
 use ratatui::Frame;
@@ -15,7 +17,12 @@ use ratatui::widgets::{Axis, Block, BorderType, Chart, Dataset, GraphType, Parag
 const TREND_ROUNDS: usize = 40;
 const FULL: &str = "\u{2588}";
 const EMPTY: &str = "\u{2591}";
-const CHART: Color = Color::Cyan;
+// one line color per mode in the trend chart
+const LINES: [(&str, &str, Color); 3] = [
+    (BASE, "baseline", Color::Cyan),
+    (KEYS, "weak keys", Color::Green),
+    (CODE, "code", Color::Magenta),
+];
 
 fn panel(title: &str) -> Block<'_> {
     Block::bordered()
@@ -34,63 +41,81 @@ fn bar(filled: usize, width: usize, color: Color) -> [Span<'static>; 2] {
 }
 
 pub fn render(f: &mut Frame, area: Rect, app: &App, now: u64) {
+    let view = app.progress_view;
     let deck_h = Deck::ALL.len() as u16 + 2;
-    let [tiles, middle, decks] = Layout::vertical([
+    let [views, tiles, middle, decks] = Layout::vertical([
+        Constraint::Length(1),
         Constraint::Length(4),
         Constraint::Min(6),
         Constraint::Length(deck_h),
     ])
     .spacing(1)
     .areas(area);
-    let wpms: Vec<u32> = app
-        .progress
-        .rounds
-        .iter()
-        .filter(|r| r.mode != "cards")
-        .map(|r| r.wpm)
-        .collect();
-    if wpms.is_empty() {
-        let msg = vec![
-            Line::styled("Finish a round in baseline, weak keys or code", bold()),
-            Line::styled("and your speed, streak and weak keys show up here.", dim()),
-        ];
-        f.render_widget(
-            Paragraph::new(msg).alignment(Alignment::Center),
-            super::centered(middle, middle.width, 2),
-        );
-    } else {
-        draw_tiles(f, tiles, app, &wpms, now);
-        let [trend, weak] =
-            Layout::horizontal([Constraint::Percentage(60), Constraint::Percentage(40)])
-                .spacing(2)
-                .areas(middle);
-        draw_trend(f, trend, &wpms);
-        draw_weak(f, weak, app);
+    draw_view_tabs(f, views, view);
+    match history::change(&app.progress, view) {
+        None => {
+            let what = if view == View::All {
+                "baseline, weak keys or code"
+            } else {
+                view.label()
+            };
+            let msg = vec![
+                Line::styled(format!("Finish a round in {what}"), bold()),
+                Line::styled(
+                    "and your speed, progress and weak keys show up here.",
+                    dim(),
+                ),
+            ];
+            let at = super::centered(middle, middle.width, 2);
+            f.render_widget(Paragraph::new(msg).alignment(Alignment::Center), at);
+        }
+        Some(c) => {
+            draw_tiles(f, tiles, app, view, c, now);
+            let [trend, weak] =
+                Layout::horizontal([Constraint::Percentage(60), Constraint::Percentage(40)])
+                    .spacing(2)
+                    .areas(middle);
+            draw_trend(f, trend, app, view);
+            draw_weak(f, weak, app, view);
+        }
     }
     draw_decks(f, decks, app);
 }
 
-fn draw_tiles(f: &mut Frame, area: Rect, app: &App, wpms: &[u32], now: u64) {
-    let recent: Vec<u32> = app
-        .progress
-        .rounds
-        .iter()
-        .rev()
-        .filter(|r| r.mode != "cards")
-        .take(10)
-        .map(|r| r.acc)
-        .collect();
+fn draw_view_tabs(f: &mut Frame, area: Rect, view: View) {
+    let mut spans = vec![Span::styled("< ", dim())];
+    for (i, v) in View::ALL.iter().enumerate() {
+        if i > 0 {
+            spans.push(Span::styled("   ", dim()));
+        }
+        let style = if *v == view { bold().fg(ACCENT) } else { dim() };
+        spans.push(Span::styled(v.label(), style));
+    }
+    spans.push(Span::styled(" >", dim()));
+    f.render_widget(
+        Paragraph::new(Line::from(spans)).alignment(Alignment::Center),
+        area,
+    );
+}
+
+fn draw_tiles(f: &mut Frame, area: Rect, app: &App, view: View, c: history::Change, now: u64) {
+    let rs = history::rounds(&app.progress, view);
+    let recent: Vec<u32> = rs.iter().rev().take(10).map(|r| r.acc).collect();
     let acc = recent.iter().sum::<u32>() / recent.len().max(1) as u32;
     let today = app.progress.days.get(&day_key(now)).copied().unwrap_or(0) / 60_000;
+    let sign = if c.delta() >= 0 { "+" } else { "" };
     let tiles = [
-        (wpms.last().copied().unwrap_or(0).to_string(), "latest wpm"),
+        (format!("{} wpm", c.now), "now (last 3 rounds)".to_string()),
         (
-            wpms.iter().max().copied().unwrap_or(0).to_string(),
-            "best wpm",
+            format!("{} -> {}", c.first, c.now),
+            format!("{sign}{} since first", c.delta()),
         ),
-        (format!("{acc}%"), "accuracy, last 10"),
-        (streak(&app.progress.days, now).to_string(), "day streak"),
-        (format!("{today}m"), "practiced today"),
+        (c.best.to_string(), "best wpm".to_string()),
+        (format!("{acc}%"), format!("accuracy, {} rounds", c.rounds)),
+        (
+            streak(&app.progress.days, now).to_string(),
+            format!("day streak, {today}m today"),
+        ),
     ];
     let areas = Layout::horizontal([Constraint::Fill(1); 5])
         .spacing(1)
@@ -98,7 +123,7 @@ fn draw_tiles(f: &mut Frame, area: Rect, app: &App, wpms: &[u32], now: u64) {
     for ((value, label), a) in tiles.iter().zip(areas.iter()) {
         let body = vec![
             Line::styled(value.clone(), bold()),
-            Line::styled(*label, dim()),
+            Line::styled(label.clone(), dim()),
         ];
         let tile = Block::bordered()
             .border_type(BorderType::Rounded)
@@ -112,24 +137,59 @@ fn draw_tiles(f: &mut Frame, area: Rect, app: &App, wpms: &[u32], now: u64) {
     }
 }
 
-fn draw_trend(f: &mut Frame, area: Rect, wpms: &[u32]) {
-    let tail = &wpms[wpms.len().saturating_sub(TREND_ROUNDS)..];
-    let points: Vec<(f64, f64)> = tail
+// trend points per mode in the view, each counted from that mode's first round
+// mode label, line color and (round, wpm) points
+type Series = (&'static str, Color, Vec<(f64, f64)>);
+
+fn series(app: &App, view: View) -> Vec<Series> {
+    LINES
         .iter()
-        .enumerate()
-        .map(|(i, w)| (i as f64, *w as f64))
-        .collect();
+        .filter(|(tag, _, _)| view.modes().contains(tag))
+        .map(|(tag, label, color)| {
+            let wpms: Vec<u32> = app
+                .progress
+                .rounds
+                .iter()
+                .filter(|r| r.mode == *tag)
+                .map(|r| r.wpm)
+                .collect();
+            let tail = &wpms[wpms.len().saturating_sub(TREND_ROUNDS)..];
+            let pts: Vec<(f64, f64)> = tail
+                .iter()
+                .enumerate()
+                .map(|(i, w)| (i as f64, *w as f64))
+                .collect();
+            (*label, *color, pts)
+        })
+        .filter(|(_, _, pts)| !pts.is_empty())
+        .collect()
+}
+
+fn draw_trend(f: &mut Frame, area: Rect, app: &App, view: View) {
+    let lines = series(app, view);
+    let longest = lines.iter().map(|s| s.2.len()).max().unwrap_or(0);
+    let max_wpm = lines
+        .iter()
+        .flat_map(|s| s.2.iter().map(|p| p.1 as u32))
+        .max()
+        .unwrap_or(0);
     // round the top up to the next 10, at least 60
-    let top = ((tail.iter().max().copied().unwrap_or(0) + 10).div_ceil(10) * 10).max(60) as f64;
-    let data = Dataset::default()
-        .marker(Marker::Braille)
-        .graph_type(GraphType::Line)
-        .style(Style::new().fg(CHART))
-        .data(&points);
-    let title = format!("Speed trend, last {} rounds", tail.len());
-    let chart = Chart::new(vec![data])
+    let top = ((max_wpm + 10).div_ceil(10) * 10).max(60) as f64;
+    let data: Vec<Dataset> = lines
+        .iter()
+        .map(|(label, color, pts)| {
+            Dataset::default()
+                .name(*label)
+                .marker(Marker::Braille)
+                .graph_type(GraphType::Line)
+                .style(Style::new().fg(*color))
+                .data(pts)
+        })
+        .collect();
+    let title = format!("Speed trend, {}", view.label());
+    let chart = Chart::new(data)
         .block(panel(&title))
-        .x_axis(Axis::default().bounds([0.0, (tail.len().max(2) - 1) as f64]))
+        .x_axis(Axis::default().bounds([0.0, (longest.max(2) - 1) as f64]))
         .y_axis(Axis::default().bounds([0.0, top]).style(dim()).labels([
             "0".to_string(),
             format!("{}", top as u32 / 2),
@@ -138,40 +198,48 @@ fn draw_trend(f: &mut Frame, area: Rect, wpms: &[u32]) {
     f.render_widget(chart, area);
 }
 
-fn draw_weak(f: &mut Frame, area: Rect, app: &App) {
-    let avg = avg_ms(&app.progress.stats);
-    let mut keys: Vec<(char, f64)> = app
-        .progress
-        .stats
+fn draw_weak(f: &mut Frame, area: Rect, app: &App, view: View) {
+    let stats = history::view_stats(&app.progress, view);
+    let avg = avg_ms(&stats);
+    let mut keys: Vec<(char, f64)> = stats
         .iter()
         .filter(|(_, s)| s.n >= MIN_SAMPLES)
         .map(|(c, s)| (*c, weakness(Some(s), avg)))
         .collect();
     keys.sort_by(|a, b| b.1.total_cmp(&a.1));
     let rows = area.height.saturating_sub(2) as usize;
-    let lines: Vec<Line> = keys
-        .iter()
-        .take(rows)
-        .map(|(c, w)| {
-            let s = app.progress.stats[c];
-            let filled = (((w - 0.6) / 2.4).clamp(0.0, 1.0) * 10.0).round() as usize;
-            let mut spans = vec![Span::styled(
-                format!(" {}  ", c.to_ascii_uppercase()),
-                bold(),
-            )];
-            spans.extend(bar(filled, 10, super::BAD));
-            spans.push(Span::styled(
-                format!(
-                    "  {:>2}% miss  {:>3} ms",
-                    100 * s.e / (s.n + s.e),
-                    s.ms / s.n as u64
-                ),
-                dim(),
-            ));
-            Line::from(spans)
-        })
-        .collect();
-    f.render_widget(Paragraph::new(lines).block(panel("Weak keys")), area);
+    let lines: Vec<Line> = if keys.is_empty() {
+        vec![Line::styled(
+            " type a few rounds to find your weak keys",
+            dim(),
+        )]
+    } else {
+        keys.iter()
+            .take(rows)
+            .map(|(c, w)| {
+                let s = stats[c];
+                let filled = (((w - 0.6) / 2.4).clamp(0.0, 1.0) * 10.0).round() as usize;
+                let mut spans = vec![Span::styled(
+                    format!(" {}  ", c.to_ascii_uppercase()),
+                    bold(),
+                )];
+                spans.extend(bar(filled, 10, super::BAD));
+                let miss = 100 * s.e / (s.n + s.e);
+                let ms = s.ms / s.n as u64;
+                spans.push(Span::styled(
+                    format!("  {miss:>2}% miss  {ms:>3} ms"),
+                    dim(),
+                ));
+                Line::from(spans)
+            })
+            .collect()
+    };
+    let title = if view == View::All {
+        "Weak keys, text".to_string()
+    } else {
+        format!("Weak keys, {}", view.label())
+    };
+    f.render_widget(Paragraph::new(lines).block(panel(&title)), area);
 }
 
 fn draw_decks(f: &mut Frame, area: Rect, app: &App) {
