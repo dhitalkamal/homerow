@@ -86,7 +86,10 @@ with the "race your best" row on the settings tab.
   version that day (picked from the UTC date, no server), so you can compare
   wpm with friends. Retry as often as you like; the stats line shows your best
   today, and the ghost races it.
-- shortcuts: flash cards for text editing, macOS, Finder, zsh and IntelliJ.
+- shortcuts: flash cards for text editing, macOS, Finder, zsh, IntelliJ,
+  VS Code, Chrome / Arc, tmux (default ctrl+b prefix) and vim. Key sequences
+  like tmux's ctrl+b then c, or vim's g g and c i w, are graded step by step
+  ("keep going: 1 of 2 keys"); a wrong step starts the card over.
 - progress: one view per mode (left/right switches between all modes,
   baseline, weak keys and code). Each view shows where you are now (average of
   the last 3 rounds), first round to now, best speed, accuracy, a speed trend

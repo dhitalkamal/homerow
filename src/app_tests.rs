@@ -165,8 +165,9 @@ fn brackets_cycle_the_deck_filter() {
     a.handle(Input::Text('['), 0);
     assert_eq!(a.deck, None);
     a.handle(Input::Text('['), 0);
-    assert_eq!(a.deck, Some(Deck::Idea));
-    assert_eq!(CARDS[a.card].deck, Deck::Idea);
+    let last = *Deck::ALL.last().unwrap();
+    assert_eq!(a.deck, Some(last), "wraps to the last deck");
+    assert_eq!(CARDS[a.card].deck, last);
 }
 
 #[test]
@@ -330,4 +331,45 @@ fn settings_zoom_row_does_nothing_without_kitty_support() {
     a.zoom_ok = true;
     a.handle(Input::Text(' '), 0);
     assert_eq!(a.progress.settings.zoom, 2);
+}
+
+#[test]
+fn sequence_cards_are_graded_step_by_step() {
+    let (mut a, _d) = app();
+    a.mode = Mode::Cards;
+    set_card(&mut a, "ctrl+b c");
+    let id = CARDS[a.card].id();
+    a.handle(combo("ctrl+b"), 0);
+    assert_eq!((a.card_state.clone(), a.seq_pos), (CardState::Ask, 1));
+    a.handle(Input::Text('c'), 10);
+    assert!(matches!(a.card_state, CardState::Done(_)));
+    assert_eq!(a.progress.boxes[&id], 1);
+}
+
+#[test]
+fn a_wrong_step_resets_the_sequence() {
+    let (mut a, _d) = app();
+    a.mode = Mode::Cards;
+    set_card(&mut a, "ctrl+b c");
+    a.handle(combo("ctrl+b"), 0);
+    a.handle(Input::Text('x'), 10);
+    assert!(matches!(a.card_state, CardState::Retry(Some(_))));
+    assert_eq!(a.seq_pos, 0);
+    assert_eq!(a.progress.boxes[&CARDS[a.card].id()], 0);
+}
+
+#[test]
+fn bracket_mid_sequence_is_a_key_not_a_deck_change() {
+    let (mut a, _d) = app();
+    a.mode = Mode::Cards;
+    set_card(&mut a, "ctrl+b [");
+    let deck = a.deck;
+    a.handle(combo("ctrl+b"), 0);
+    a.handle(Input::Text('['), 10);
+    assert!(
+        matches!(a.card_state, CardState::Done(_)),
+        "{:?}",
+        a.card_state
+    );
+    assert_eq!(a.deck, deck);
 }

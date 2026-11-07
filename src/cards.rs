@@ -13,10 +13,24 @@ pub enum Deck {
     Finder,
     Zsh,
     Idea,
+    VsCode,
+    Browser,
+    Tmux,
+    Vim,
 }
 
 impl Deck {
-    pub const ALL: [Deck; 5] = [Deck::Text, Deck::Mac, Deck::Finder, Deck::Zsh, Deck::Idea];
+    pub const ALL: [Deck; 9] = [
+        Deck::Text,
+        Deck::Mac,
+        Deck::Finder,
+        Deck::Zsh,
+        Deck::Idea,
+        Deck::VsCode,
+        Deck::Browser,
+        Deck::Tmux,
+        Deck::Vim,
+    ];
     pub fn label(self) -> &'static str {
         match self {
             Deck::Text => "Text editing",
@@ -24,6 +38,10 @@ impl Deck {
             Deck::Finder => "Finder",
             Deck::Zsh => "Terminal (zsh)",
             Deck::Idea => "IntelliJ",
+            Deck::VsCode => "VS Code",
+            Deck::Browser => "Chrome / Arc",
+            Deck::Tmux => "tmux",
+            Deck::Vim => "vim",
         }
     }
 }
@@ -85,7 +103,8 @@ pub fn parse(s: &str) -> Option<Combo> {
             _ => key = Some(parse_key(t)?),
         }
     }
-    Some(Combo { mods, key: key? })
+    // fold shifted symbols the way terminals send them, like '?' as shift+/
+    Some(normalize(mods, key?))
 }
 
 fn parse_key(t: &str) -> Option<Key> {
@@ -187,6 +206,37 @@ pub fn known(cards: &[Card], boxes: &BTreeMap<String, u32>, deck: Deck) -> (usiz
         .filter(|c| boxes.get(&c.id()).copied().unwrap_or(0) >= KNOWN_BOX)
         .count();
     (k, in_deck.len())
+}
+
+// a card's keys as steps: "ctrl+b c" is ctrl+b then c, "g g" is g twice.
+// a bare single character means that character as typed, so "%" is shift+5.
+// None when any step is something a terminal never reports (like "shift").
+pub fn parse_seq(s: &str) -> Option<Vec<Combo>> {
+    s.split_whitespace()
+        .map(|part| {
+            let mut chars = part.chars();
+            match (chars.next(), chars.next()) {
+                (Some(c), None) => Some(normalize(Mods::default(), Key::Char(c))),
+                _ => parse(part),
+            }
+        })
+        .collect()
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Step {
+    Next(usize),
+    Done,
+    Wrong,
+}
+
+// one key press against step `pos` of a sequence
+pub fn step(seq: &[Combo], pos: usize, pressed: Combo) -> Step {
+    match seq.get(pos) {
+        Some(want) if *want == pressed && pos + 1 == seq.len() => Step::Done,
+        Some(want) if *want == pressed => Step::Next(pos + 1),
+        _ => Step::Wrong,
+    }
 }
 
 #[cfg(test)]
@@ -311,5 +361,43 @@ mod tests {
         b.insert(cards[0].id(), KNOWN_BOX);
         b.insert(cards[1].id(), 1);
         assert_eq!(known(&cards, &b, Deck::Zsh), (1, 2));
+    }
+
+    #[test]
+    fn sequences_split_into_steps() {
+        let ctrl_b = parse("ctrl+b").unwrap();
+        let c = normalize(Mods::default(), Key::Char('c'));
+        assert_eq!(parse_seq("ctrl+b c"), Some(vec![ctrl_b, c]));
+        assert_eq!(parse_seq("g g").unwrap().len(), 2);
+        assert_eq!(parse_seq("cmd+P"), Some(vec![parse("cmd+P").unwrap()]));
+        assert_eq!(
+            parse_seq("shift shift"),
+            None,
+            "shift alone never reaches a terminal"
+        );
+    }
+
+    #[test]
+    fn bare_capitals_and_symbols_mean_shift() {
+        let shift5 = normalize(Mods::default(), Key::Char('%'));
+        assert_eq!(parse_seq("%"), Some(vec![shift5]));
+        assert_eq!(
+            parse_seq("$"),
+            Some(vec![normalize(Mods::default(), Key::Char('$'))])
+        );
+        assert_eq!(
+            parse_seq("shift+G"),
+            Some(vec![normalize(Mods::default(), Key::Char('G'))])
+        );
+    }
+
+    #[test]
+    fn steps_advance_finish_or_fail() {
+        let seq = parse_seq("ctrl+b c").unwrap();
+        let ctrl_b = parse("ctrl+b").unwrap();
+        let c = normalize(Mods::default(), Key::Char('c'));
+        assert_eq!(step(&seq, 0, ctrl_b), Step::Next(1));
+        assert_eq!(step(&seq, 1, c), Step::Done);
+        assert_eq!(step(&seq, 1, ctrl_b), Step::Wrong);
     }
 }

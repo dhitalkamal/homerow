@@ -111,6 +111,8 @@ pub struct App {
     pub path: PathBuf,
     pub card: usize,
     pub card_state: CardState,
+    // steps of a key-sequence card already pressed ("ctrl+b c" has two)
+    pub seq_pos: usize,
     pub deck: Option<Deck>,
     pub notice: Option<String>,
     // a share card waiting to be copied by the main loop
@@ -152,6 +154,7 @@ impl App {
             path,
             card: 0,
             card_state: CardState::Ask,
+            seq_pos: 0,
             deck: None,
             notice,
             pending_copy: None,
@@ -258,6 +261,7 @@ impl App {
         let last = Some(self.card);
         self.card = cards::pick(CARDS, &self.progress.boxes, self.deck, last, &mut self.rng);
         self.card_state = CardState::Ask;
+        self.seq_pos = 0;
     }
 
     fn save(&mut self) {

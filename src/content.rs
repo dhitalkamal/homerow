@@ -109,6 +109,68 @@ pub const CARDS: &[Card] = &[
     c(Idea, "File structure popup", "cmd+F12"),
     c(Idea, "Find in files", "cmd+shift+F"),
     c(Idea, "Run", "ctrl+R"),
+    // vs code on macos
+    c(VsCode, "Quick open a file", "cmd+P"),
+    c(VsCode, "Command palette", "cmd+shift+P"),
+    c(VsCode, "Select the next match too", "cmd+D"),
+    c(VsCode, "Toggle line comment", "cmd+/"),
+    c(VsCode, "Move line up", "opt+Up"),
+    c(VsCode, "Copy line down", "opt+shift+Down"),
+    c(VsCode, "Toggle the sidebar", "cmd+B"),
+    c(VsCode, "Toggle the terminal", "ctrl+`"),
+    c(VsCode, "Search in all files", "cmd+shift+F"),
+    c(VsCode, "Go to definition", "F12"),
+    c(VsCode, "Rename symbol", "F2"),
+    c(VsCode, "Delete line", "cmd+shift+K"),
+    c(VsCode, "Keyboard shortcuts list", "cmd+K cmd+S"),
+    c(VsCode, "Zen mode", "cmd+K z"),
+    // chrome and arc on macos
+    r(Browser, "New tab", "cmd+T"),
+    r(Browser, "Close tab", "cmd+W"),
+    c(Browser, "Reopen the tab you just closed", "cmd+shift+T"),
+    c(Browser, "Jump to the address bar", "cmd+L"),
+    c(Browser, "Next tab", "ctrl+Tab"),
+    c(Browser, "First tab", "cmd+1"),
+    c(Browser, "Reload", "cmd+R"),
+    c(Browser, "Reload without cache", "cmd+shift+R"),
+    c(Browser, "Developer tools", "cmd+opt+I"),
+    c(Browser, "Find on the page", "cmd+F"),
+    c(Browser, "Back", "cmd+["),
+    c(Browser, "Arc: show or hide the sidebar", "cmd+S"),
+    c(Browser, "Arc: copy the page link", "cmd+shift+C"),
+    // tmux with the default ctrl+b prefix
+    c(Tmux, "New window", "ctrl+b c"),
+    c(Tmux, "Next window", "ctrl+b n"),
+    c(Tmux, "Previous window", "ctrl+b p"),
+    c(Tmux, "Split side by side", "ctrl+b %"),
+    c(Tmux, "Split top and bottom", "ctrl+b \""),
+    c(Tmux, "Detach", "ctrl+b d"),
+    c(Tmux, "Zoom the pane", "ctrl+b z"),
+    c(Tmux, "Rename the window", "ctrl+b ,"),
+    c(Tmux, "Copy mode", "ctrl+b ["),
+    c(Tmux, "Go to the next pane", "ctrl+b o"),
+    c(Tmux, "Close the pane", "ctrl+b x"),
+    // vim normal mode
+    c(Vim, "Delete the line", "d d"),
+    c(Vim, "Copy (yank) the line", "y y"),
+    c(Vim, "Paste after the cursor", "p"),
+    c(Vim, "Undo", "u"),
+    c(Vim, "Redo", "ctrl+R"),
+    c(Vim, "Top of the file", "g g"),
+    c(Vim, "End of the file", "shift+G"),
+    c(Vim, "Start of the line", "0"),
+    c(Vim, "End of the line", "$"),
+    c(Vim, "Next word", "w"),
+    c(Vim, "Back a word", "b"),
+    c(Vim, "Change the word under the cursor", "c i w"),
+    c(Vim, "Open a line below", "o"),
+    c(Vim, "Open a line above", "shift+O"),
+    c(Vim, "Add at the end of the line", "shift+A"),
+    c(Vim, "Delete the character", "x"),
+    c(Vim, "Search", "/"),
+    c(Vim, "Next match", "n"),
+    c(Vim, "Jump to the matching bracket", "%"),
+    c(Vim, "Save and quit", ": w q Enter"),
 ];
 
 pub fn words() -> Vec<&'static str> {
@@ -189,12 +251,12 @@ pub fn code_text(rng: &mut Rng) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cards::parse;
+    use crate::cards::parse_seq;
 
     #[test]
     fn every_live_card_parses_and_every_unparseable_card_is_recall() {
         for card in CARDS.iter() {
-            if parse(card.combo).is_none() {
+            if parse_seq(card.combo).is_none() {
                 assert!(card.recall, "{} needs to be a recall card", card.combo);
             }
         }
@@ -285,5 +347,12 @@ mod tests {
             hits(&with),
             hits(&without)
         );
+    }
+
+    #[test]
+    fn new_decks_have_cards() {
+        for d in [Deck::VsCode, Deck::Browser, Deck::Tmux, Deck::Vim] {
+            assert!(CARDS.iter().filter(|c| c.deck == d).count() >= 8, "{d:?}");
+        }
     }
 }

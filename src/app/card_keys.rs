@@ -6,8 +6,10 @@ use crate::content::CARDS;
 impl App {
     pub(super) fn card_input(&mut self, input: Input, now: u64) {
         let card = CARDS[self.card];
+        // [ and ] change deck, except halfway through a sequence ("ctrl+b [")
         if let Input::Text(b @ ('[' | ']')) = input
             && self.card_state != CardState::Judge
+            && self.seq_pos == 0
         {
             return self.cycle_deck(b == ']');
         }
@@ -34,7 +36,19 @@ impl App {
                     Input::Text(ch) => cards::normalize(Mods::default(), Key::Char(ch)),
                     _ => return,
                 };
-                let hit = cards::parse(card.combo) == Some(pressed);
+                let Some(seq) = cards::parse_seq(card.combo) else {
+                    return;
+                };
+                let hit = match cards::step(&seq, self.seq_pos, pressed) {
+                    // a correct step of a longer sequence: wait for the next key
+                    cards::Step::Next(pos) => {
+                        self.seq_pos = pos;
+                        return;
+                    }
+                    cards::Step::Done => true,
+                    cards::Step::Wrong => false,
+                };
+                self.seq_pos = 0;
                 if first_try {
                     cards::grade(&mut self.progress.boxes, &card, hit);
                     self.save();

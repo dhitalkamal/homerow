@@ -123,6 +123,16 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
             vec![Line::styled("think of the keys, then press space", dim())],
             Line::raw(""),
         ),
+        CardState::Ask if app.seq_pos > 0 => {
+            let steps = crate::cards::parse_seq(card.combo).map_or(0, |s| s.len());
+            (
+                vec![Line::styled("press the shortcut", dim())],
+                Line::styled(
+                    format!("keep going: {} of {steps} keys", app.seq_pos),
+                    dim(),
+                ),
+            )
+        }
         CardState::Ask => (
             vec![Line::styled("press the shortcut", dim())],
             Line::styled("space shows the answer", dim()),
