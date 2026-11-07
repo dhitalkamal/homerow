@@ -256,3 +256,23 @@ fn slow_pairs_show_on_the_drill_and_the_dashboard() {
     let s = screen(&a, 120, 40);
     assert!(s.contains("slow pairs") && s.contains("ng"), "{s}");
 }
+
+#[test]
+fn lessons_show_the_keyboard_and_what_is_next() {
+    let (mut a, _d) = app();
+    assert!(!a.progress.settings.keyboard);
+    go(&mut a, Mode::Lessons);
+    let s = screen(&a, 100, 44);
+    assert!(s.contains("shift"), "keyboard shows in lessons\n{s}");
+    assert!(s.contains("lesson 8/27") && s.contains("new key"), "{s}");
+    let text: Vec<char> = a.session.text.clone();
+    let mut t = NOW - 30_000;
+    for ch in text {
+        if a.session.next_char() == Some(ch) {
+            a.handle(Input::Text(ch), t);
+            t += 100;
+        }
+    }
+    let s = screen(&a, 100, 44);
+    assert!(s.contains("unlocked G"), "{s}");
+}

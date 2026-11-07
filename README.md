@@ -76,6 +76,12 @@ with the "race your best" row on the settings tab.
 - mistakes: drills the words you got wrong in the other modes, weighted by how
   often you missed them. Typing a word cleanly (in any mode) counts it down, so
   fixed words drop off the list.
+- lessons: learn touch typing key by key. You start with the home row
+  (f j d k s l a ;); a lesson round with 95% accuracy and 20 wpm unlocks the
+  next key (g h e i r u t n o c w m v b p y x q z). Lessons use only keys you
+  have unlocked, as letter groups at first and real words once there are
+  enough, with the newest key coming up often. The keyboard and hands always
+  show here so you can see where the new key is.
 - shortcuts: flash cards for text editing, macOS, Finder, zsh and IntelliJ.
 - progress: one view per mode (left/right switches between all modes,
   baseline, weak keys and code). Each view shows where you are now (average of

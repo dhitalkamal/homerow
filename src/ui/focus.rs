@@ -36,7 +36,8 @@ pub fn render(
         area.width,
         area.height,
         density,
-        opts.keyboard,
+        // lessons always show the keyboard: beginners need to see the new key
+        opts.keyboard || app.mode == Mode::Lessons,
         opts.hands,
         opts.big_text,
         if app.zoom_ok { opts.zoom as u16 } else { 1 },
@@ -133,6 +134,17 @@ fn stats_line(app: &App, now: u64) -> Line<'static> {
         };
         line.push_span(Span::styled(note, dim()));
     }
+    // guided lessons: how far along, and the key being learned
+    if app.mode == Mode::Lessons {
+        let level = app.progress.lesson_keys;
+        let new = crate::lessons::newest(level).to_ascii_uppercase();
+        let total = crate::lessons::ORDER.len();
+        line.push_span(Span::styled(
+            format!("      lesson {level}/{total}  new key "),
+            dim(),
+        ));
+        line.push_span(Span::styled(new.to_string(), bold()));
+    }
     // your own file: say which one
     if let (Mode::Code, Some(name)) = (app.mode, &app.own_name) {
         line.push_span(Span::styled(format!("      from {name}"), dim()));
@@ -186,6 +198,24 @@ fn results(f: &mut Frame, area: Rect, app: &App) {
         None => ("first round in this mode".to_string(), dim()),
     };
     lines.push(Line::styled(delta, style));
+    // guided lessons: did this round open the next key
+    if r.mode == crate::history::LESSONS {
+        let level = app.progress.lesson_keys;
+        let passed = crate::lessons::passes(r.wpm, r.acc);
+        let (note, style) = if passed && level == crate::lessons::ORDER.len() {
+            (
+                "every key unlocked".to_string(),
+                Style::new().fg(super::GOOD),
+            )
+        } else if passed {
+            let key = crate::lessons::newest(level).to_ascii_uppercase();
+            (format!("unlocked {key}"), Style::new().fg(super::GOOD))
+        } else {
+            let (acc, wpm) = (crate::lessons::PASS_ACC, crate::lessons::PASS_WPM);
+            (format!("{acc}% and {wpm} wpm unlock the next key"), dim())
+        };
+        lines.push(Line::styled(note, style));
+    }
     // today's practice against the daily goal, counted on the round's own day
     let goal = app.progress.settings.goal_min as u64;
     if goal > 0 {

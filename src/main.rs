@@ -6,6 +6,7 @@ mod content;
 mod demo;
 mod history;
 mod input;
+mod lessons;
 mod rng;
 mod session;
 mod settings;
