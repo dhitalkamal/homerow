@@ -106,9 +106,9 @@ mod tests {
         assert_eq!(Item::Keyboard.value(&p), "off");
         toggle(Item::HideLabels, &mut p);
         assert!(p.settings.hide_labels);
-        assert_eq!(Item::BigText.value(&p), "on");
+        assert_eq!(Item::BigText.value(&p), "off");
         toggle(Item::BigText, &mut p);
-        assert!(!p.settings.big_text);
+        assert!(p.settings.big_text);
     }
 
     #[test]

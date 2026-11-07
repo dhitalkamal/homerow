@@ -53,7 +53,7 @@ impl Default for Settings {
             finger_colors: true,
             heatmap: false,
             hide_labels: false,
-            big_text: true,
+            big_text: false,
         }
     }
 }

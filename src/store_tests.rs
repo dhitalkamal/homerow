@@ -109,7 +109,10 @@ fn older_file_missing_fields_still_loads() {
 fn keyboard_starts_hidden_with_hands_and_colors_ready() {
     let s = Settings::default();
     assert!(!s.keyboard && s.hands && s.finger_colors && !s.heatmap && !s.hide_labels);
-    assert!(s.big_text, "big text is on by default");
+    assert!(
+        !s.big_text,
+        "big text is opt-in, 4x is too big as a default"
+    );
 }
 
 #[test]

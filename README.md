@@ -43,11 +43,14 @@ and the line under the keyboard names the finger.
 
 ## big text
 
-On wide terminals the typing text is drawn in big block letters, about four
-times the normal size. They are made of ordinary block characters, so this works
-in any terminal, not just kitty. It switches on when at least 24 letters fit on
-a line (3 rows, or 2 when the on-screen keyboard is on) and falls back to normal
-text otherwise. Turn it off with the "big text" row on the settings tab.
+Off by default. Turn on the "big text" row on the settings tab to draw the
+typing text in block letters, about four times the normal size (handy on a TV
+or from a distance). They are made of ordinary block characters, so this works
+in any terminal. It only applies when at least 24 letters fit on a line, and
+falls back to normal text otherwise.
+
+For a smaller step up, zoom your terminal instead (cmd+= in most macOS
+terminals, ctrl+= or ctrl+shift+= elsewhere); the layout adapts.
 
 ## size and zoom
 

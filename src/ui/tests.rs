@@ -267,7 +267,8 @@ fn footer_avoids_ligature_pairs() {
 
 #[test]
 fn big_text_draws_block_letters_on_a_wide_terminal() {
-    let (a, _d) = app();
+    let (mut a, _d) = app();
+    a.progress.settings.big_text = true;
     let s = screen(&a, 150, 40);
     // quadrant and full block characters make up the big letters
     let blocks = s
@@ -284,7 +285,15 @@ fn big_text_draws_block_letters_on_a_wide_terminal() {
 
 #[test]
 fn narrow_terminal_keeps_normal_text_even_with_big_text_on() {
-    let (a, _d) = app();
+    let (mut a, _d) = app();
+    a.progress.settings.big_text = true;
     let s = screen(&a, 90, 40);
+    assert!(s.contains(&first_word(&a)), "{s}");
+}
+
+#[test]
+fn wide_terminal_uses_normal_text_by_default() {
+    let (a, _d) = app();
+    let s = screen(&a, 150, 40);
     assert!(s.contains(&first_word(&a)), "{s}");
 }
