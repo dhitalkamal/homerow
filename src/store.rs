@@ -19,6 +19,10 @@ pub struct Round {
     pub wpm: u32,
     pub acc: u32,
     pub at_ms: u64,
+    // baseline test the round ran (like "30s +punct"); None for other modes
+    // and for rounds saved before test options existed
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub test: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -56,6 +60,10 @@ pub struct Settings {
     pub zoom: u8,
     // minutes of practice a day that count toward the streak, 0 is off
     pub goal_min: u32,
+    // baseline test: length, sentences with punctuation, numbers mixed in
+    pub test: crate::baseline::Length,
+    pub punctuation: bool,
+    pub numbers: bool,
 }
 
 impl Default for Settings {
@@ -69,6 +77,9 @@ impl Default for Settings {
             big_text: false,
             zoom: 1,
             goal_min: 15,
+            test: crate::baseline::Length::Time(60),
+            punctuation: false,
+            numbers: false,
         }
     }
 }

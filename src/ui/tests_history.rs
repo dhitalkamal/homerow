@@ -20,6 +20,7 @@ fn history_view_lists_rounds_newest_first() {
             wpm: 31,
             acc: 94,
             at_ms: NOW - 3 * 3_600_000,
+            test: None,
         },
         60_000,
     );
@@ -29,6 +30,7 @@ fn history_view_lists_rounds_newest_first() {
             wpm: 22,
             acc: 97,
             at_ms: NOW - 120_000,
+            test: None,
         },
         60_000,
     );
@@ -50,6 +52,7 @@ fn progress_shows_todays_minutes_against_the_goal() {
             wpm: 30,
             acc: 95,
             at_ms: NOW,
+            test: None,
         },
         12 * 60_000,
     );
@@ -83,4 +86,77 @@ fn code_tab_names_the_file_you_are_typing() {
     go(&mut a, Mode::Code);
     let s = screen(&a, 100, 40);
     assert!(s.contains("from main.rs"), "{s}");
+}
+
+#[test]
+fn stats_line_shows_the_test_and_counts_down_from_its_length() {
+    let (mut a, _d) = app();
+    a.progress.settings.test = crate::baseline::Length::Time(30);
+    a.handle(Input::Tab, NOW);
+    a.handle(Input::BackTab, NOW);
+    let s = screen(&a, 100, 40);
+    assert!(s.contains("30s left") && s.contains("30s"), "{s}");
+}
+
+#[test]
+fn results_compare_only_with_the_same_test() {
+    let (mut a, _d) = app();
+    a.progress.add_round(
+        Round {
+            mode: "base".into(),
+            wpm: 99,
+            acc: 98,
+            at_ms: NOW - 100_000,
+            test: Some("60s".into()),
+        },
+        60_000,
+    );
+    a.progress.settings.test = crate::baseline::Length::Words(25);
+    a.handle(Input::Tab, NOW);
+    a.handle(Input::BackTab, NOW);
+    let text: Vec<char> = a.session.text.clone();
+    let mut t = NOW - 60_000;
+    for ch in text {
+        if a.session.next_char() == Some(ch) {
+            a.handle(Input::Text(ch), t);
+            t += 150;
+        }
+    }
+    let s = screen(&a, 100, 40);
+    assert!(
+        !s.contains("best 99"),
+        "a 60s best shown on a 25 word result\n{s}"
+    );
+}
+
+#[test]
+fn history_shows_which_test_each_baseline_round_ran() {
+    let (mut a, _d) = app();
+    a.progress.add_round(
+        Round {
+            mode: "base".into(),
+            wpm: 44,
+            acc: 97,
+            at_ms: NOW - 60_000,
+            test: Some("30s +punct".into()),
+        },
+        60_000,
+    );
+    a.progress.add_round(
+        Round {
+            mode: "base".into(),
+            wpm: 38,
+            acc: 95,
+            at_ms: NOW - 90_000,
+            test: None,
+        },
+        60_000,
+    );
+    go(&mut a, Mode::Progress);
+    a.handle(Input::Text('\n'), NOW);
+    let s = screen(&a, 110, 40);
+    assert!(
+        s.contains("baseline 30s +punct") && s.contains("baseline 60s"),
+        "{s}"
+    );
 }

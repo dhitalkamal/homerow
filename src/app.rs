@@ -1,4 +1,5 @@
 // app state and what each key press does to it. no drawing here, see ui/.
+use crate::baseline;
 use crate::cards::{self, Combo, Deck, Key};
 use crate::content::{self, CARDS};
 use crate::history;
@@ -8,6 +9,8 @@ use crate::stats::weak_letters;
 use crate::store::{self, Progress, Round};
 use std::path::PathBuf;
 
+// the default baseline test, a plain minute
+#[cfg(test)]
 const BASELINE_MS: u64 = 60_000;
 const DONE_PAUSE_MS: u64 = 650;
 // how long a size change message stays in the footer
@@ -220,6 +223,10 @@ impl App {
             wpm: self.session.wpm(now),
             acc: self.session.accuracy(),
             at_ms: now,
+            test: (self.mode == Mode::Base).then(|| {
+                let s = self.progress.settings;
+                baseline::label(s.test, s.punctuation, s.numbers)
+            }),
         };
         self.progress.add_round(round, self.session.elapsed(now));
         for w in self.session.missed_words() {
@@ -235,10 +242,9 @@ impl App {
         self.recorded = false;
         match self.mode {
             Mode::Base => {
-                self.session = Session::new(
-                    &content::baseline_text(&mut self.rng, 150),
-                    Some(BASELINE_MS),
-                )
+                let s = self.progress.settings;
+                let text = baseline::text(&mut self.rng, s.test, s.punctuation, s.numbers);
+                self.session = Session::new(&text, s.test.limit_ms());
             }
             Mode::Keys => {
                 self.focus = weak_letters(

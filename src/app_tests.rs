@@ -402,6 +402,7 @@ fn return_toggles_round_history_and_arrows_scroll_it() {
                 wpm,
                 acc: 95,
                 at_ms: 0,
+                test: None,
             },
             60_000,
         );
@@ -427,4 +428,22 @@ fn code_tab_types_your_own_file_when_one_is_loaded() {
     go(&mut a, Mode::Code);
     let text: String = a.session.text.iter().collect();
     assert_eq!(text, "let total = add(1, 2);");
+}
+
+#[test]
+fn baseline_uses_the_chosen_test_and_files_the_round_under_it() {
+    let (mut a, _d) = app();
+    a.progress.settings.test = crate::baseline::Length::Words(25);
+    a.progress.settings.punctuation = true;
+    a.handle(Input::Tab, 0);
+    a.handle(Input::BackTab, 0);
+    assert_eq!(a.mode, Mode::Base);
+    let text: String = a.session.text.iter().collect();
+    assert_eq!(text.split(' ').count(), 25);
+    type_all(&mut a, 1000);
+    assert!(
+        a.session.is_done(),
+        "a word test ends when the words are done"
+    );
+    assert_eq!(a.last_round().unwrap().test.as_deref(), Some("25w +punct"));
 }

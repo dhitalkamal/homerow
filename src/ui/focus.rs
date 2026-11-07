@@ -102,10 +102,10 @@ pub fn render(
 fn stats_line(app: &App, now: u64) -> Line<'static> {
     let s = &app.session;
     let secs = s.elapsed(now) / 1000;
-    let clock = if app.mode == Mode::Base {
-        format!("{}s left", 60u64.saturating_sub(secs))
-    } else {
-        format!("{secs}s")
+    let opts = app.progress.settings;
+    let clock = match (app.mode, opts.test.limit_ms()) {
+        (Mode::Base, Some(limit)) => format!("{}s left", (limit / 1000).saturating_sub(secs)),
+        _ => format!("{secs}s"),
     };
     let mut line = Line::from(vec![
         Span::styled(s.wpm(now).to_string(), bold().fg(super::ACCENT)),
@@ -114,6 +114,11 @@ fn stats_line(app: &App, now: u64) -> Line<'static> {
         Span::styled(" accuracy      ", dim()),
         Span::styled(clock, dim()),
     ]);
+    // baseline: which test this is
+    if app.mode == Mode::Base {
+        let label = crate::baseline::label(opts.test, opts.punctuation, opts.numbers);
+        line.push_span(Span::styled(format!("      {label}"), dim()));
+    }
     // your own file: say which one
     if let (Mode::Code, Some(name)) = (app.mode, &app.own_name) {
         line.push_span(Span::styled(format!("      from {name}"), dim()));
@@ -130,12 +135,14 @@ fn stats_line(app: &App, now: u64) -> Line<'static> {
 
 fn results(f: &mut Frame, area: Rect, app: &App) {
     let Some(r) = app.last_round() else { return };
-    // compare only with rounds of the same mode: code is slower than prose
+    // compare only with rounds of the same mode and test: code is slower than
+    // prose, and a 15 second sprint is faster than a 2 minute test
+    let test = crate::history::test_of(r);
     let typing: Vec<_> = app
         .progress
         .rounds
         .iter()
-        .filter(|x| x.mode == r.mode)
+        .filter(|x| x.mode == r.mode && crate::history::test_of(x) == test)
         .collect();
     let best = typing.iter().map(|x| x.wpm).max().unwrap_or(0);
     let prev = typing.iter().rev().nth(1);
