@@ -276,3 +276,27 @@ fn lessons_show_the_keyboard_and_what_is_next() {
     let s = screen(&a, 100, 44);
     assert!(s.contains("unlocked G"), "{s}");
 }
+
+#[test]
+fn daily_shows_the_date_and_best_today() {
+    let (mut a, _d) = app();
+    a.tick(NOW);
+    let today = crate::store::day_key(NOW);
+    a.progress.add_round(
+        Round {
+            mode: "daily".into(),
+            wpm: 48,
+            acc: 97,
+            at_ms: NOW - 1_000,
+            test: Some(today.clone()),
+        },
+        60_000,
+    );
+    go(&mut a, Mode::Daily);
+    let s = screen(&a, 100, 40);
+    assert!(
+        s.contains(&format!("daily {today}")) && s.contains("best today 48"),
+        "{s}"
+    );
+    assert!(s.contains("settings"), "all tabs still fit at 100 columns");
+}

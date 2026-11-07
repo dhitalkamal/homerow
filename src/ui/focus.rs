@@ -145,6 +145,14 @@ fn stats_line(app: &App, now: u64) -> Line<'static> {
         ));
         line.push_span(Span::styled(new.to_string(), bold()));
     }
+    // daily challenge: today's date and your best on it
+    if app.mode == Mode::Daily {
+        let date = app.test_label().unwrap_or_default();
+        line.push_span(Span::styled(format!("      daily {date}"), dim()));
+        if let Some(best) = crate::history::best_for(&app.progress, crate::history::DAILY, &date) {
+            line.push_span(Span::styled(format!("  best today {best}"), dim()));
+        }
+    }
     // your own file: say which one
     if let (Mode::Code, Some(name)) = (app.mode, &app.own_name) {
         line.push_span(Span::styled(format!("      from {name}"), dim()));

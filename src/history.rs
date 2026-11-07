@@ -9,6 +9,7 @@ pub const KEYS: &str = "keys";
 pub const CODE: &str = "code";
 pub const MISTAKES: &str = "mistakes";
 pub const LESSONS: &str = "lessons";
+pub const DAILY: &str = "daily";
 
 // what the progress tab is showing
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -19,16 +20,18 @@ pub enum View {
     Code,
     Mistakes,
     Lessons,
+    Daily,
 }
 
 impl View {
-    pub const ALL: [View; 6] = [
+    pub const ALL: [View; 7] = [
         View::All,
         View::Base,
         View::Keys,
         View::Code,
         View::Mistakes,
         View::Lessons,
+        View::Daily,
     ];
     pub fn label(self) -> &'static str {
         match self {
@@ -38,17 +41,19 @@ impl View {
             View::Code => "code",
             View::Mistakes => "mistakes",
             View::Lessons => "lessons",
+            View::Daily => "daily",
         }
     }
     // round tags this view covers
     pub fn modes(self) -> &'static [&'static str] {
         match self {
-            View::All => &[BASE, KEYS, CODE, MISTAKES, LESSONS],
+            View::All => &[BASE, KEYS, CODE, MISTAKES, LESSONS, DAILY],
             View::Base => &[BASE],
             View::Keys => &[KEYS],
             View::Code => &[CODE],
             View::Mistakes => &[MISTAKES],
             View::Lessons => &[LESSONS],
+            View::Daily => &[DAILY],
         }
     }
 }

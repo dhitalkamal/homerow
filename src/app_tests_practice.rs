@@ -15,7 +15,7 @@ fn left_and_right_switch_the_progress_view() {
     a.handle(key(cards::Key::Left), 0);
     assert_eq!(
         a.progress_view,
-        View::Lessons,
+        *View::ALL.last().unwrap(),
         "wraps around to the last view"
     );
 }
@@ -229,4 +229,17 @@ fn a_slow_lesson_unlocks_nothing_and_the_last_level_stays() {
     a.handle(Input::Text('\n'), t);
     type_all(&mut a, t + 1_000);
     assert_eq!(a.progress.lesson_keys, crate::lessons::ORDER.len());
+}
+
+#[test]
+fn daily_tab_types_the_days_words_and_files_rounds_under_the_date() {
+    let (mut a, _d) = app();
+    let now = 1_794_009_600_000 + 3_600_000;
+    a.tick(now);
+    go(&mut a, Mode::Daily);
+    let text: String = a.session.text.iter().collect();
+    assert_eq!(text, crate::daily::text(crate::daily::day(now)));
+    type_all(&mut a, now);
+    assert_eq!(a.last_round().unwrap().mode, "daily");
+    assert_eq!(a.last_round().unwrap().test.as_deref(), Some("2026-11-07"));
 }

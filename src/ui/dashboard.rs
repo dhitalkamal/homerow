@@ -4,7 +4,7 @@ use super::{ACCENT, bold, dim};
 use crate::app::App;
 use crate::cards::{Deck, known};
 use crate::content::CARDS;
-use crate::history::{self, BASE, CODE, KEYS, LESSONS, MISTAKES, View};
+use crate::history::{self, BASE, CODE, DAILY, KEYS, LESSONS, MISTAKES, View};
 use crate::stats::{MIN_SAMPLES, avg_ms, weak_pairs, weakness};
 use crate::store::{day_key, goal_streak};
 use ratatui::Frame;
@@ -18,12 +18,13 @@ const TREND_ROUNDS: usize = 40;
 const FULL: &str = "\u{2588}";
 const EMPTY: &str = "\u{2591}";
 // one line color per mode in the trend chart
-const LINES: [(&str, &str, Color); 5] = [
+const LINES: [(&str, &str, Color); 6] = [
     (BASE, "baseline", Color::Cyan),
     (KEYS, "weak keys", Color::Green),
     (CODE, "code", Color::Magenta),
     (MISTAKES, "mistakes", Color::Yellow),
     (LESSONS, "lessons", Color::LightBlue),
+    (DAILY, "daily", Color::LightGreen),
 ];
 
 fn panel(title: &str) -> Block<'_> {
