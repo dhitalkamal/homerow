@@ -82,13 +82,61 @@ mv -f "$DIR/.homerow.new" "$DIR/homerow"
 say "installed homerow to $DIR/homerow"
 
 case ":$PATH:" in
-    *":$DIR:"*) say "run: homerow" ;;
-    *)
-        say "$DIR is not on your PATH yet. add this line to your shell profile"
-        say "(~/.zshrc on macOS), then open a new terminal:"
-        # $PATH stays literal on purpose: the user pastes this into their profile
-        # shellcheck disable=SC2016
-        printf '    export PATH="%s:$PATH"\n' "$DIR"
-        say "or run it now with: $DIR/homerow"
+    *":$DIR:"*)
+        say "run: homerow"
+        exit 0
         ;;
 esac
+
+# the folder is not on PATH yet: add it to the shell's startup file, once.
+# HOMEROW_NO_MODIFY_PATH=1 skips this and only prints what to add.
+if [ "$DIR" = "$HOME/.local/bin" ]; then
+    # shellcheck disable=SC2016
+    SHOWN='$HOME/.local/bin'
+else
+    SHOWN="$DIR"
+fi
+
+manual() {
+    say "$DIR is not on your PATH yet. add this line to your shell profile, then open a new terminal:"
+    # $PATH stays literal on purpose: the user pastes this into their profile
+    # shellcheck disable=SC2016
+    printf '    export PATH="%s:$PATH"\n' "$SHOWN"
+    say "or run it now with: $DIR/homerow"
+}
+
+PROFILE=""
+LINE=""
+case "${SHELL:-}" in
+    */zsh)
+        PROFILE="${ZDOTDIR:-$HOME}/.zshrc"
+        LINE="export PATH=\"$SHOWN:\$PATH\""
+        ;;
+    */bash)
+        case "$PLATFORM" in
+            Darwin-*) PROFILE="$HOME/.bash_profile" ;;
+            *) PROFILE="$HOME/.bashrc" ;;
+        esac
+        LINE="export PATH=\"$SHOWN:\$PATH\""
+        ;;
+    */fish)
+        PROFILE="$HOME/.config/fish/config.fish"
+        LINE="fish_add_path $SHOWN"
+        ;;
+esac
+
+if [ -n "${HOMEROW_NO_MODIFY_PATH:-}" ] || [ -z "$PROFILE" ]; then
+    manual
+    exit 0
+fi
+
+# never add it twice, even across reinstalls
+if [ -f "$PROFILE" ] && grep -qF "$SHOWN" "$PROFILE"; then
+    say "$PROFILE already adds $SHOWN to PATH. open a new terminal, then run: homerow"
+    exit 0
+fi
+
+mkdir -p "$(dirname "$PROFILE")"
+printf '\n# added by the homerow installer\n%s\n' "$LINE" >> "$PROFILE"
+say "added $SHOWN to your PATH in $PROFILE"
+say "open a new terminal (or run: . $PROFILE), then run: homerow"
