@@ -22,10 +22,8 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, now: u64) {
     } else {
         0
     };
-    let [_, hint, _, text, stats, _, kbd, _] = Layout::vertical([
+    let [_, text, stats, _, kbd, _] = Layout::vertical([
         Constraint::Fill(1),
-        Constraint::Length(1),
-        Constraint::Length(1),
         // 3 text rows, each followed by a blank line
         Constraint::Length(6),
         Constraint::Length(1),
@@ -35,10 +33,6 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, now: u64) {
     ])
     .areas(area);
     let center = |r: Rect| centered(r, TEXT_WIDTH, r.height);
-    f.render_widget(
-        Paragraph::new(hint_line(app)).alignment(Alignment::Center),
-        hint,
-    );
     prompt::render(f, center(text), app);
     f.render_widget(
         Paragraph::new(stats_line(app, now)).alignment(Alignment::Center),
@@ -46,23 +40,6 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, now: u64) {
     );
     if kbd_h > 0 {
         keyboard::render(f, kbd, app);
-    }
-}
-
-fn hint_line(app: &App) -> Line<'static> {
-    match app.mode {
-        Mode::Keys => {
-            let mut spans = vec![Span::styled("focus  ", dim())];
-            for c in &app.focus {
-                spans.push(Span::styled(
-                    format!(" {} ", c.to_ascii_uppercase()),
-                    bold(),
-                ));
-            }
-            Line::from(spans)
-        }
-        Mode::Code => Line::styled("real code, indentation is typed for you", dim()),
-        _ => Line::styled("60 second test, the clock starts on your first key", dim()),
     }
 }
 
@@ -75,13 +52,21 @@ fn stats_line(app: &App, now: u64) -> Line<'static> {
     } else {
         format!("{secs}s")
     };
-    Line::from(vec![
+    let mut line = Line::from(vec![
         Span::styled(s.wpm(now).to_string(), bold().fg(super::ACCENT)),
         Span::styled(" wpm      ", dim()),
         Span::styled(format!("{}%", s.accuracy()), bold().fg(super::ACCENT)),
         Span::styled(" accuracy      ", dim()),
         Span::styled(clock, dim()),
-    ])
+    ]);
+    // weak keys: which letters this round leans on
+    if app.mode == Mode::Keys {
+        line.push_span(Span::styled("      focus ", dim()));
+        for c in &app.focus {
+            line.push_span(Span::styled(format!(" {}", c.to_ascii_uppercase()), bold()));
+        }
+    }
+    line
 }
 
 fn results(f: &mut Frame, area: Rect, app: &App) {

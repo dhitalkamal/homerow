@@ -52,6 +52,25 @@ fn typing_screen_is_focused() {
 }
 
 #[test]
+fn no_hint_text_above_the_typing_area() {
+    let (mut a, _d) = app();
+    for mode in [Mode::Base, Mode::Keys, Mode::Code] {
+        go(&mut a, mode);
+        let s = screen(&a, 100, 40);
+        let rows: Vec<&str> = s.lines().collect();
+        let text_row = rows
+            .iter()
+            .position(|r| r.contains(&first_word(&a)))
+            .unwrap();
+        // everything between the tab line and the text must be empty
+        assert!(
+            rows[3..text_row].iter().all(|r| r.trim().is_empty()),
+            "text above typing area in {mode:?}\n{s}"
+        );
+    }
+}
+
+#[test]
 fn stats_line_has_a_blank_line_above_it() {
     let (a, _d) = app();
     let s = screen(&a, 100, 40);
