@@ -5,17 +5,27 @@ dependencies.
 
 ## install
 
-### macOS (Apple Silicon), no Rust needed
+One line, on macOS or Linux:
 
-Download the latest release and put `homerow` on your PATH:
+    curl -fsSL https://raw.githubusercontent.com/dhitalkamal/homerow/main/install.sh | sh
+
+On Apple Silicon Macs this downloads the latest release, checks it against the
+published SHA-256 checksum, removes the download quarantine flag (the binary is
+not Apple signed) and installs it to `~/.local/bin`. On other systems it builds
+from source with `cargo`, or tells you how to get Rust first. It never uses
+sudo, installs nothing if the download or checksum is wrong, and says how to add
+`~/.local/bin` to your PATH if needed. Run the same line again to update.
+
+Options: `HOMEROW_VERSION=v0.1.0` pins a release, `HOMEROW_INSTALL_DIR=...`
+picks another folder. The checksum catches broken or changed downloads; it
+comes from the same GitHub release, so it does not protect against a
+compromised GitHub account. Read `install.sh` first if you like, it is short.
+
+### Manual download (macOS, Apple Silicon)
 
     curl -L https://github.com/dhitalkamal/homerow/releases/latest/download/homerow-aarch64-apple-darwin.tar.gz | tar xz
     xattr -d com.apple.quarantine homerow 2>/dev/null
     mkdir -p ~/.local/bin && mv homerow ~/.local/bin/
-
-The `xattr` line removes the download quarantine flag; the binary is not signed
-by Apple, so without it macOS may refuse to open it. Make sure `~/.local/bin`
-is on your PATH, then run `homerow`.
 
 ### Any platform, from source
 
