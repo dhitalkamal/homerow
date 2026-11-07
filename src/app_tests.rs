@@ -418,3 +418,13 @@ fn return_toggles_round_history_and_arrows_scroll_it() {
     }
     assert_eq!(a.history_scroll, 0);
 }
+
+#[test]
+fn code_tab_types_your_own_file_when_one_is_loaded() {
+    let (mut a, _d) = app();
+    a.own = vec!["let total = add(1, 2);".to_string()];
+    a.own_name = Some("main.rs".to_string());
+    go(&mut a, Mode::Code);
+    let text: String = a.session.text.iter().collect();
+    assert_eq!(text, "let total = add(1, 2);");
+}

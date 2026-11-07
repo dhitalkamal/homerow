@@ -114,6 +114,10 @@ fn stats_line(app: &App, now: u64) -> Line<'static> {
         Span::styled(" accuracy      ", dim()),
         Span::styled(clock, dim()),
     ]);
+    // your own file: say which one
+    if let (Mode::Code, Some(name)) = (app.mode, &app.own_name) {
+        line.push_span(Span::styled(format!("      from {name}"), dim()));
+    }
     // weak keys: which letters this round leans on
     if app.mode == Mode::Keys {
         line.push_span(Span::styled("      focus ", dim()));

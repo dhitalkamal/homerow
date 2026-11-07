@@ -14,6 +14,15 @@ not read or changed):
 
     homerow --demo
 
+To type your own text, pass a file; the code tab then uses it, a few lines at
+a time:
+
+    homerow --file src/main.rs
+
+Tabs become 4 spaces, shared indentation is removed, control characters are
+stripped (a file cannot send escape codes to your terminal), and lines with
+characters a US keyboard cannot type are skipped.
+
 ## modes
 
 Tab cycles through them, Esc quits.

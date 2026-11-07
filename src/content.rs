@@ -149,6 +149,43 @@ pub fn mistakes_text(rng: &mut Rng, mistakes: &BTreeMap<String, u32>, n: usize) 
         .join(" ")
 }
 
+// your own file split into rounds: up to 6 non-blank lines each, tabs as
+// 4 spaces, control characters removed (a file must never be able to send
+// escape codes to the terminal), lines with untypeable characters skipped,
+// and the indentation the lines share removed
+pub fn own_text(raw: &str) -> Vec<String> {
+    let lines: Vec<String> = raw
+        .lines()
+        .map(|l| {
+            l.replace('\t', "    ")
+                .chars()
+                .filter(|c| !c.is_control())
+                .collect::<String>()
+                .trim_end()
+                .to_string()
+        })
+        .filter(|l| !l.trim().is_empty() && l.is_ascii())
+        .collect();
+    lines
+        .chunks(OWN_LINES)
+        .map(|chunk| {
+            let indent = chunk
+                .iter()
+                .map(|l| l.len() - l.trim_start().len())
+                .min()
+                .unwrap_or(0);
+            chunk
+                .iter()
+                .map(|l| &l[indent..])
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .collect()
+}
+
+// lines per round when typing your own file
+const OWN_LINES: usize = 6;
+
 pub fn code_text(rng: &mut Rng) -> &'static str {
     rng.pick(&CODE)
 }
@@ -200,5 +237,46 @@ mod tests {
             hits(&weak),
             hits(&base)
         );
+    }
+
+    #[test]
+    fn own_text_is_cleaned_before_it_reaches_the_screen() {
+        let raw = "fn main() {\n\tlet x = 1;\u{1b}[2J\n}\n";
+        let chunks = own_text(raw);
+        assert_eq!(
+            chunks,
+            vec!["fn main() {\n    let x = 1;[2J\n}".to_string()]
+        );
+        assert!(
+            chunks
+                .iter()
+                .all(|c| !c.chars().any(|ch| ch.is_control() && ch != '\n'))
+        );
+    }
+
+    #[test]
+    fn own_text_skips_lines_you_cannot_type_and_splits_long_files() {
+        let mut raw = String::from("caf\u{e9} au lait\n");
+        for i in 0..20 {
+            raw.push_str(&format!("let value_{i} = compute({i});\n"));
+        }
+        let chunks = own_text(&raw);
+        assert!(chunks.iter().all(|c| c.lines().count() <= 6));
+        assert!(
+            chunks.iter().all(|c| c.is_ascii()),
+            "lines with accents are skipped"
+        );
+        assert_eq!(chunks.iter().map(|c| c.lines().count()).sum::<usize>(), 20);
+    }
+
+    #[test]
+    fn own_text_removes_shared_indentation() {
+        let chunks = own_text("        if ready {\n            go();\n        }\n");
+        assert_eq!(chunks, vec!["if ready {\n    go();\n}".to_string()]);
+    }
+
+    #[test]
+    fn own_text_of_an_empty_file_is_empty() {
+        assert!(own_text("\n\n   \n").is_empty());
     }
 }

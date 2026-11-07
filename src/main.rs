@@ -1,5 +1,6 @@
 mod app;
 mod cards;
+mod cli;
 mod content;
 mod demo;
 mod history;
@@ -30,32 +31,62 @@ fn now_ms() -> u64 {
 
 const HELP: &str = "homerow - typing and mac shortcut trainer
 
-usage: homerow [--demo]
+usage: homerow [--demo] [--file PATH]
 
-  --demo   start with two weeks of sample progress, kept in a temp file.
-           your real progress is not read or changed.
+  --demo        start with two weeks of sample progress, kept in a temp file.
+                your real progress is not read or changed.
+  -f, --file    type your own text: the code tab uses PATH, a few lines at a
+                time.
 
 keys: tab switches mode, esc quits.
 progress: ~/.local/share/homerow/progress.json";
 
 fn main() -> io::Result<()> {
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    if args.iter().any(|a| a == "-h" || a == "--help") {
+    let raw: Vec<String> = std::env::args().skip(1).collect();
+    let args = match cli::parse(&raw) {
+        Ok(a) => a,
+        Err(msg) => {
+            eprintln!("{msg}");
+            std::process::exit(2);
+        }
+    };
+    if args.help {
         println!("{HELP}");
         return Ok(());
     }
-    if let Some(a) = args.iter().find(|a| *a != "--demo") {
-        eprintln!("unknown option {a}, see homerow --help");
-        std::process::exit(2);
-    }
-    let path = if args.is_empty() {
-        store::default_path()
-    } else {
+    // load your own file before the screen takes over, so errors are readable
+    let own = match &args.file {
+        None => Vec::new(),
+        Some(p) => match std::fs::read_to_string(p) {
+            Ok(text) => {
+                let chunks = content::own_text(&text);
+                if chunks.is_empty() {
+                    eprintln!(
+                        "{} has no lines homerow can use (blank, or characters a us keyboard cannot type)",
+                        p.display()
+                    );
+                    std::process::exit(2);
+                }
+                chunks
+            }
+            Err(e) => {
+                eprintln!("could not read {}: {e}", p.display());
+                std::process::exit(2);
+            }
+        },
+    };
+    let path = if args.demo {
         let p = std::env::temp_dir().join(format!("homerow-demo-{}.json", std::process::id()));
         store::save(&p, &demo::progress(now_ms()))?;
         p
+    } else {
+        store::default_path()
     };
     let mut app = app::App::new(path.clone(), now_ms());
+    if let Some(p) = &args.file {
+        app.own = own;
+        app.own_name = p.file_name().map(|n| n.to_string_lossy().into_owned());
+    }
     let mut term = ratatui::init();
     // kitty keyboard protocol: lets cmd (super) combos reach us. terminals
     // without it still work, they just can't report cmd.
@@ -74,7 +105,7 @@ fn main() -> io::Result<()> {
         let _ = execute!(stdout(), PopKeyboardEnhancementFlags);
     }
     ratatui::restore();
-    if args.is_empty() {
+    if !args.demo {
         println!("progress saved to {}", path.display());
     } else {
         // demo data is throwaway, clean it up
