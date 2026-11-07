@@ -2,7 +2,7 @@
 // newest first, scrolled with up/down
 use super::{bold, dim};
 use crate::app::App;
-use crate::history::{ago, history_rows, test_of};
+use crate::history::{ago, history_rows, mode_label, test_of};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
@@ -24,7 +24,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, now: u64) {
             Span::styled(
                 format!(
                     "{:<22}",
-                    format!("{} {}", label(&r.mode), test_of(r)).trim_end()
+                    format!("{} {}", mode_label(&r.mode), test_of(r)).trim_end()
                 ),
                 dim(),
             ),
@@ -42,13 +42,4 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, now: u64) {
         .border_style(dim())
         .title(Span::styled(title, bold()));
     f.render_widget(Paragraph::new(lines).block(block), area);
-}
-
-// round tags as people read them
-fn label(tag: &str) -> &str {
-    match tag {
-        "base" => "baseline",
-        "keys" => "weak keys",
-        other => other,
-    }
 }

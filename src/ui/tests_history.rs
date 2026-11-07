@@ -300,3 +300,19 @@ fn daily_shows_the_date_and_best_today() {
     );
     assert!(s.contains("settings"), "all tabs still fit at 100 columns");
 }
+
+#[test]
+fn results_footer_offers_the_share_card() {
+    let (mut a, _d) = app();
+    go(&mut a, Mode::Code);
+    let text: Vec<char> = a.session.text.clone();
+    let mut t = NOW - 60_000;
+    for ch in text {
+        if a.session.next_char() == Some(ch) {
+            a.handle(Input::Text(ch), t);
+            t += 150;
+        }
+    }
+    let s = screen(&a, 110, 40);
+    assert!(s.contains("copy share card"), "{s}");
+}

@@ -161,6 +161,15 @@ pub fn ghost_pos(wpm: u32, elapsed_ms: u64) -> usize {
     (wpm as u64 * 5 * elapsed_ms / 60_000) as usize
 }
 
+// round tags as people read them
+pub fn mode_label(tag: &str) -> &str {
+    match tag {
+        BASE => "baseline",
+        KEYS => "weak keys",
+        other => other,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

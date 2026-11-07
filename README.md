@@ -116,6 +116,18 @@ Each letter on the keyboard is tinted by the finger that presses it (8 fixed
 colors, so no theme can merge two fingers), the next key fills with that color,
 and the line under the keyboard names the finger.
 
+## share card
+
+On any results screen press c to copy a short card for friends:
+
+    homerow daily 2026-11-07: 52 wpm, 97% accuracy
+    streak 4 days, try it: github.com/dhitalkamal/homerow
+
+It uses your system clipboard tool (pbcopy on macOS, wl-copy, xclip or xsel on
+Linux, clip on Windows), run directly without a shell. Without one it falls
+back to the terminal clipboard code (OSC 52), which kitty, iTerm2, WezTerm and
+many others support.
+
 ## daily goal
 
 The "daily goal" row on the settings tab sets how many minutes a day you want to
