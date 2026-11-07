@@ -115,12 +115,13 @@ pub fn words() -> Vec<&'static str> {
     WORDS.split(' ').collect()
 }
 
-// words weighted by how many focus letters they contain
-pub fn weak_text(rng: &mut Rng, focus: &[char], n: usize) -> String {
+// words weighted by how many focus letters and weak pairs they contain
+pub fn weak_text(rng: &mut Rng, focus: &[char], pairs: &[String], n: usize) -> String {
     let mut pool = Vec::new();
     for w in words() {
         let hits = w.chars().filter(|ch| focus.contains(ch)).count();
-        pool.extend(std::iter::repeat_n(w, 1 + hits * 4));
+        let pair_hits: usize = pairs.iter().map(|p| w.matches(p.as_str()).count()).sum();
+        pool.extend(std::iter::repeat_n(w, 1 + hits * 4 + pair_hits * 6));
     }
     (0..n)
         .map(|_| *rng.pick(&pool))
@@ -215,7 +216,7 @@ mod tests {
                 .filter(|w| w.chars().any(|ch| focus.contains(&ch)))
                 .count()
         };
-        let weak = weak_text(&mut Rng::new(9), &focus, 200);
+        let weak = weak_text(&mut Rng::new(9), &focus, &[], 200);
         let base = crate::baseline::text(
             &mut Rng::new(9),
             crate::baseline::Length::Words(200),
@@ -270,5 +271,19 @@ mod tests {
     #[test]
     fn own_text_of_an_empty_file_is_empty() {
         assert!(own_text("\n\n   \n").is_empty());
+    }
+
+    #[test]
+    fn weak_text_also_leans_on_weak_pairs() {
+        let pairs = vec!["ng".to_string()];
+        let hits = |t: &str| t.split(' ').filter(|w| w.contains("ng")).count();
+        let with = weak_text(&mut Rng::new(4), &[], &pairs, 300);
+        let without = weak_text(&mut Rng::new(4), &[], &[], 300);
+        assert!(
+            hits(&with) > hits(&without) * 2,
+            "with {} without {}",
+            hits(&with),
+            hits(&without)
+        );
     }
 }

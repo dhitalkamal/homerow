@@ -225,3 +225,34 @@ fn ghost_also_shows_in_kitty_zoom() {
         "no ghost in zoomed text"
     );
 }
+
+#[test]
+fn slow_pairs_show_on_the_drill_and_the_dashboard() {
+    let (mut a, _d) = app();
+    a.progress.pairs.insert(
+        "ng".into(),
+        crate::stats::KeyStat {
+            n: 20,
+            e: 8,
+            ms: 12_000,
+        },
+    );
+    a.progress.add_round(
+        Round {
+            mode: "keys".into(),
+            wpm: 30,
+            acc: 90,
+            at_ms: NOW,
+            test: None,
+        },
+        60_000,
+    );
+    go(&mut a, Mode::Keys);
+    assert!(
+        screen(&a, 110, 40).contains("ng"),
+        "focus line shows the pair"
+    );
+    go(&mut a, Mode::Progress);
+    let s = screen(&a, 120, 40);
+    assert!(s.contains("slow pairs") && s.contains("ng"), "{s}");
+}

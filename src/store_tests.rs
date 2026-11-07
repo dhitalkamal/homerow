@@ -320,3 +320,21 @@ fn test_options_default_to_a_plain_minute_and_old_rounds_have_no_label() {
     let r: Round = serde_json::from_str(r#"{"mode":"base","wpm":40,"acc":95,"at_ms":1}"#).unwrap();
     assert_eq!(r.test, None);
 }
+
+#[test]
+fn letter_pairs_are_saved() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("p.json");
+    let mut p = Progress::default();
+    assert!(p.pairs.is_empty());
+    p.pairs.insert(
+        "th".into(),
+        KeyStat {
+            n: 7,
+            e: 1,
+            ms: 1400,
+        },
+    );
+    save(&path, &p).unwrap();
+    assert_eq!(load(&path).0.pairs["th"].n, 7);
+}

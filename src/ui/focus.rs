@@ -143,6 +143,9 @@ fn stats_line(app: &App, now: u64) -> Line<'static> {
         for c in &app.focus {
             line.push_span(Span::styled(format!(" {}", c.to_ascii_uppercase()), bold()));
         }
+        for p in &app.focus_pairs {
+            line.push_span(Span::styled(format!("  {p}"), bold()));
+        }
     }
     line
 }

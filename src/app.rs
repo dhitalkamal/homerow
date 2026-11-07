@@ -87,6 +87,8 @@ pub struct App {
     pub mode: Mode,
     pub session: Session,
     pub focus: Vec<char>,
+    // weak letter pairs the weak keys drill leans on
+    pub focus_pairs: Vec<String>,
     // race your best: the pace of your best for this mode and test, and the
     // letter the ghost is on (updated every tick while a round runs)
     pub ghost_wpm: Option<u32>,
@@ -126,6 +128,7 @@ impl App {
             mode: Mode::Base,
             session: Session::new("", None),
             focus: Vec::new(),
+            focus_pairs: Vec::new(),
             ghost_wpm: None,
             ghost_at: None,
             progress,
@@ -242,6 +245,15 @@ impl App {
             }),
         };
         self.progress.add_round(round, self.session.elapsed(now));
+        // letter pairs only from text: code has its own rhythm
+        if matches!(self.mode, Mode::Base | Mode::Keys) {
+            for (p, s) in self.session.pairs() {
+                let e = self.progress.pairs.entry(p.clone()).or_default();
+                e.n += s.n;
+                e.e += s.e;
+                e.ms += s.ms;
+            }
+        }
         for w in self.session.missed_words() {
             self.progress.note_mistake(&w);
         }
@@ -261,12 +273,15 @@ impl App {
                 self.session = Session::new(&text, s.test.limit_ms());
             }
             Mode::Keys => {
+                self.focus_pairs = crate::stats::weak_pairs(&self.progress.pairs, 2);
                 self.focus = weak_letters(
                     &history::merged(&self.progress, &[history::BASE, history::KEYS]),
                     3,
                 );
-                self.session =
-                    Session::new(&content::weak_text(&mut self.rng, &self.focus, 24), None);
+                self.session = Session::new(
+                    &content::weak_text(&mut self.rng, &self.focus, &self.focus_pairs, 24),
+                    None,
+                );
             }
             Mode::Code if !self.own.is_empty() => {
                 let chunk = self.rng.pick(&self.own).clone();
@@ -362,3 +377,6 @@ mod settings_keys;
 #[cfg(test)]
 #[path = "app_tests.rs"]
 mod tests;
+#[cfg(test)]
+#[path = "app_tests_practice.rs"]
+mod tests_practice;

@@ -1,6 +1,6 @@
 // one typing round: the target text, cursor, misses and clock.
 // you can't move past a wrong key, so every round trains clean presses.
-use crate::stats::{self, KeyStats};
+use crate::stats::{self, KeyStats, PairStats};
 
 // a gap longer than this is a pause, not slow typing, so it is capped
 const MAX_GAP_MS: u64 = 1500;
@@ -29,6 +29,8 @@ pub struct Session {
     missed_here: bool,
     // text positions where a wrong key was pressed
     misses: Vec<usize>,
+    // letter pairs typed this round (both a to z, back to back)
+    pairs: PairStats,
     start: Option<u64>,
     last: u64,
     limit_ms: Option<u64>,
@@ -43,6 +45,7 @@ impl Session {
             errs: 0,
             missed_here: false,
             misses: Vec::new(),
+            pairs: PairStats::new(),
             start: None,
             last: 0,
             limit_ms,
@@ -65,9 +68,23 @@ impl Session {
         // lowercase key); spaces and newlines are not
         let key = want.to_ascii_lowercase();
         let tracked = key.is_ascii_graphic();
+        // the letter pair ending at this key, if both are letters
+        let pair = match self
+            .pos
+            .checked_sub(1)
+            .map(|p| self.text[p].to_ascii_lowercase())
+        {
+            Some(prev) if prev.is_ascii_lowercase() && key.is_ascii_lowercase() => {
+                Some(format!("{prev}{key}"))
+            }
+            _ => None,
+        };
         if c != want {
             self.errs += 1;
             self.misses.push(self.pos);
+            if let Some(p) = &pair {
+                self.pairs.entry(p.clone()).or_default().e += 1;
+            }
             self.missed_here = true;
             if tracked {
                 stats.entry(key).or_default().e += 1;
@@ -78,6 +95,11 @@ impl Session {
             let s = stats.entry(key).or_default();
             s.n += 1;
             s.ms += (now - self.last).min(MAX_GAP_MS);
+        }
+        if let Some(p) = pair {
+            let ps = self.pairs.entry(p).or_default();
+            ps.n += 1;
+            ps.ms += (now - self.last).min(MAX_GAP_MS);
         }
         self.pos += 1;
         self.last = now;
@@ -124,6 +146,9 @@ impl Session {
     #[cfg(test)]
     pub fn errors(&self) -> usize {
         self.errs
+    }
+    pub fn pairs(&self) -> &PairStats {
+        &self.pairs
     }
     pub fn next_char(&self) -> Option<char> {
         self.text.get(self.pos).copied()
@@ -318,5 +343,35 @@ mod tests {
         typed(&mut s, "e cat sat", 400, 100, &mut st);
         assert_eq!(s.missed_words(), vec!["the".to_string()]);
         assert_eq!(s.clean_words(), vec!["cat".to_string(), "sat".to_string()]);
+    }
+
+    #[test]
+    fn letter_pairs_are_timed_and_missed_pairs_counted() {
+        let mut st = KeyStats::new();
+        let mut s = Session::new("the a", None);
+        s.press('t', 0, &mut st);
+        s.press('x', 100, &mut st);
+        s.press('h', 300, &mut st);
+        s.press('e', 450, &mut st);
+        typed(&mut s, " a", 600, 100, &mut st);
+        let p = s.pairs();
+        assert_eq!(
+            p["th"],
+            KeyStat {
+                n: 1,
+                e: 1,
+                ms: 300
+            }
+        );
+        assert_eq!(
+            p["he"],
+            KeyStat {
+                n: 1,
+                e: 0,
+                ms: 150
+            }
+        );
+        assert!(!p.keys().any(|k| k.contains(' ')), "spaces break pairs");
+        assert_eq!(p.len(), 2);
     }
 }

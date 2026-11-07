@@ -69,7 +69,8 @@ Race your best: once you have a best for a mode and test, a ghost runs through
 the text at that pace (a gray block on the letter it has reached) and the stats
 line shows "ghost 41: +6" when you are ahead or "-4" when behind. Switch it off
 with the "race your best" row on the settings tab.
-- weak keys: words built around your 3 slowest or most missed letters.
+- weak keys: words built around your 3 slowest or most missed letters and your
+  2 slowest letter pairs (like "ng" or "er"), shown on the stats line.
 - code: short real snippets (Python, Go, Rust, TypeScript, SQL, shell, git).
   Indentation after Return is typed for you.
 - mistakes: drills the words you got wrong in the other modes, weighted by how
@@ -80,7 +81,8 @@ with the "race your best" row on the settings tab.
   baseline, weak keys and code). Each view shows where you are now (average of
   the last 3 rounds), first round to now, best speed, accuracy, a speed trend
   (one line per mode) and that mode's weak keys. Code tracks symbols and digits
-  too. Shortcut deck progress sits underneath.
+  too, and the text views list your slowest letter pairs. Shortcut deck
+  progress sits underneath.
   Return opens the round history for the current view: every round with when,
   mode, wpm and accuracy, newest first, scrolled with up/down.
 
