@@ -129,6 +129,58 @@ pub fn render_big(f: &mut Frame, area: Rect, app: &App, rows: u16) {
     }
 }
 
+// kitty zoom: no cells are drawn here, the text comes back as runs (one per
+// style change) that main.rs writes with the text sizing escape code. each row
+// is padded with spaces to the full width so longer old text is overwritten.
+pub fn zoom_runs(area: Rect, app: &App, rows: u16, scale: u16) -> Vec<crate::zoom::Run> {
+    let s = &app.session;
+    let letters = (area.width / scale).max(1) as usize;
+    let (ranges, cur) = rows_and_cursor(app, letters);
+    let first = if rows >= 3 {
+        cur.saturating_sub(1)
+    } else {
+        cur
+    };
+    let mut runs = Vec::new();
+    for row in 0..rows as usize {
+        let y = area.y + row as u16 * (scale + 1);
+        let mut x = area.x;
+        let mut used = 0;
+        if let Some(&(a, b)) = ranges.get(first + row) {
+            let mut i = a;
+            while i < b {
+                let style = style_for(s.cell(i));
+                let mut text = String::new();
+                while i < b && style_for(s.cell(i)) == style {
+                    text.push(if s.text[i] == '\n' { ' ' } else { s.text[i] });
+                    i += 1;
+                }
+                let n = text.chars().count();
+                runs.push(crate::zoom::Run {
+                    x,
+                    y,
+                    scale: scale as u8,
+                    text,
+                    style,
+                });
+                x += n as u16 * scale;
+                used += n;
+            }
+        }
+        if used < letters {
+            let text = " ".repeat(letters - used);
+            runs.push(crate::zoom::Run {
+                x,
+                y,
+                scale: scale as u8,
+                text,
+                style: Style::new(),
+            });
+        }
+    }
+    runs
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

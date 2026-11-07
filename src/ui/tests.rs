@@ -7,8 +7,14 @@ use ratatui::backend::TestBackend;
 const NOW: u64 = 1_794_009_600_000 + 15 * 3_600_000;
 
 fn screen(app: &App, w: u16, h: u16) -> String {
+    screen_and_runs(app, w, h).0
+}
+
+// the text a test terminal shows, plus the kitty zoom runs drawn on top
+fn screen_and_runs(app: &App, w: u16, h: u16) -> (String, Vec<crate::zoom::Run>) {
+    let mut runs = Vec::new();
     let mut t = Terminal::new(TestBackend::new(w, h)).unwrap();
-    t.draw(|f| draw(f, app, NOW)).unwrap();
+    t.draw(|f| draw(f, app, NOW, &mut runs)).unwrap();
     let buf = t.backend().buffer();
     let mut s = String::new();
     for y in 0..h {
@@ -17,7 +23,7 @@ fn screen(app: &App, w: u16, h: u16) -> String {
         }
         s.push('\n');
     }
-    s
+    (s, runs)
 }
 
 fn app() -> (App, tempfile::TempDir) {
@@ -296,4 +302,45 @@ fn wide_terminal_uses_normal_text_by_default() {
     let (a, _d) = app();
     let s = screen(&a, 150, 40);
     assert!(s.contains(&first_word(&a)), "{s}");
+}
+
+#[test]
+fn kitty_zoom_draws_the_text_as_runs_not_in_the_buffer() {
+    let (mut a, _d) = app();
+    a.zoom_ok = true;
+    a.progress.settings.zoom = 2;
+    let (s, runs) = screen_and_runs(&a, 150, 40);
+    assert!(
+        !s.contains(&first_word(&a)),
+        "text also drawn normally\n{s}"
+    );
+    assert!(s.contains("wpm"));
+    assert!(runs.iter().all(|r| r.scale == 2));
+    let text: String = runs.iter().map(|r| r.text.as_str()).collect();
+    assert!(text.trim_start().starts_with(&first_word(&a)), "{text:?}");
+    // every row is padded to the same width so old letters get overwritten
+    let mut widths = std::collections::BTreeMap::new();
+    for r in &runs {
+        *widths.entry(r.y).or_insert(0) += r.text.chars().count();
+    }
+    let w: Vec<usize> = widths.values().copied().collect();
+    assert!(w.len() == 3 && w.iter().all(|x| *x == w[0]), "{w:?}");
+}
+
+#[test]
+fn no_zoom_runs_without_kitty_support() {
+    let (mut a, _d) = app();
+    a.progress.settings.zoom = 2;
+    let (s, runs) = screen_and_runs(&a, 150, 40);
+    assert!(runs.is_empty());
+    assert!(s.contains(&first_word(&a)));
+}
+
+#[test]
+fn settings_zoom_row_says_when_kitty_is_needed() {
+    let (mut a, _d) = app();
+    go(&mut a, Mode::Settings);
+    assert!(screen(&a, 100, 48).contains("needs kitty"));
+    a.zoom_ok = true;
+    assert!(!screen(&a, 100, 48).contains("needs kitty"));
 }

@@ -9,6 +9,8 @@ const LARGE_KEYBOARD_MIN_WIDTH: u16 = 122;
 // big text: each letter is 4 columns, each row 4 lines plus a blank line
 const BIG_LETTER: u16 = 4;
 pub const BIG_ROW: u16 = 5;
+// zoomed lines hold at most this many letters, wider is hard to read
+const ZOOM_MAX_LETTERS: u16 = 70;
 const BIG_MIN_LETTERS: u16 = 24;
 const BIG_MAX_WIDTH: u16 = 160;
 
@@ -33,6 +35,8 @@ pub struct Plan {
     pub hands: bool,
     // block letter text, each row 4 lines tall plus a blank line
     pub big: bool,
+    // kitty zoom scale actually used, 1 when not zoomed
+    pub zoom: u16,
 }
 
 // keyboard, hands and big text come from settings; each only shows when it fits
@@ -43,6 +47,7 @@ pub fn plan(
     keyboard: bool,
     hands: bool,
     big: bool,
+    zoom: u16,
 ) -> Plan {
     let (mut rows, spaced, w) = match density {
         Density::Compact => (3, false, 60),
@@ -56,12 +61,29 @@ pub fn plan(
     while big_rows > 0 && big_rows * BIG_ROW + 1 > height {
         big_rows -= 1;
     }
-    let big = big && big_width / BIG_LETTER >= BIG_MIN_LETTERS && big_rows > 0;
-    let (spaced, w) = if big { (true, big_width) } else { (spaced, w) };
-    if big {
+    // kitty zoom: each letter is zoom cells wide, each row zoom lines plus a blank
+    let zoom_width = width.saturating_sub(4).min(ZOOM_MAX_LETTERS * zoom.max(1));
+    let mut zoom_rows = if keyboard { 2 } else { 3 };
+    while zoom_rows > 0 && zoom_rows * (zoom + 1) + 1 > height {
+        zoom_rows -= 1;
+    }
+    let zoomed = zoom > 1 && zoom_width / zoom >= BIG_MIN_LETTERS && zoom_rows > 0;
+    let big = !zoomed && big && big_width / BIG_LETTER >= BIG_MIN_LETTERS && big_rows > 0;
+    let (spaced, w) = if zoomed {
+        (true, zoom_width / zoom * zoom)
+    } else if big {
+        (true, big_width)
+    } else {
+        (spaced, w)
+    };
+    if zoomed {
+        rows = zoom_rows;
+    } else if big {
         rows = big_rows;
     }
-    let per = if big {
+    let per = if zoomed {
+        zoom + 1
+    } else if big {
         BIG_ROW
     } else if spaced {
         2
@@ -104,6 +126,7 @@ pub fn plan(
         kbd,
         hands,
         big,
+        zoom: if zoomed { zoom } else { 1 },
     }
 }
 
@@ -113,12 +136,12 @@ mod tests {
     use Density::*;
 
     fn on(w: u16, h: u16, d: Density) -> Plan {
-        plan(w, h, d, true, true, false)
+        plan(w, h, d, true, true, false, 1)
     }
 
     #[test]
     fn keyboard_off_means_text_only() {
-        let p = plan(120, 50, Comfortable, false, true, false);
+        let p = plan(120, 50, Comfortable, false, true, false, 1);
         assert_eq!((p.kbd, p.hands), (Kbd::Hidden, false));
     }
 
@@ -135,7 +158,7 @@ mod tests {
 
     #[test]
     fn hands_switch_off_keeps_the_keyboard() {
-        let p = plan(100, 40, Comfortable, true, false, false);
+        let p = plan(100, 40, Comfortable, true, false, false, 1);
         assert_eq!((p.kbd, p.hands), (Kbd::Full, false));
     }
 
@@ -156,7 +179,8 @@ mod tests {
                 text_width: 60,
                 kbd: Kbd::Hidden,
                 hands: false,
-                big: false
+                big: false,
+                zoom: 1
             }
         );
     }
@@ -198,7 +222,7 @@ mod tests {
     }
 
     fn big(w: u16, h: u16, keyboard: bool) -> Plan {
-        plan(w, h, Large, keyboard, false, true)
+        plan(w, h, Large, keyboard, false, true, 1)
     }
 
     #[test]
@@ -228,6 +252,48 @@ mod tests {
 
     #[test]
     fn big_text_switch_off_keeps_normal_text() {
-        assert!(!plan(147, 38, Large, false, false, false).big);
+        assert!(!plan(147, 38, Large, false, false, false, 1).big);
+    }
+
+    fn zoomed(w: u16, h: u16, keyboard: bool, zoom: u16) -> Plan {
+        plan(w, h, Comfortable, keyboard, false, false, zoom)
+    }
+
+    #[test]
+    fn zoom_2x_uses_two_columns_and_three_lines_per_row() {
+        let p = zoomed(147, 38, false, 2);
+        assert_eq!(
+            (p.zoom, p.rows, p.text_width),
+            (2, 3, 140),
+            "70 letters at most"
+        );
+        assert_eq!(
+            zoomed(147, 38, true, 2).rows,
+            2,
+            "two rows with the keyboard"
+        );
+    }
+
+    #[test]
+    fn zoom_3x_fits_fewer_letters() {
+        let p = zoomed(147, 38, false, 3);
+        assert_eq!(
+            (p.zoom, p.text_width),
+            (3, 141),
+            "47 letters, whole cells only"
+        );
+    }
+
+    #[test]
+    fn zoom_falls_back_to_normal_when_24_letters_do_not_fit() {
+        let p = zoomed(50, 38, false, 2);
+        assert_eq!(p.zoom, 1);
+        assert!(!p.big);
+    }
+
+    #[test]
+    fn zoom_wins_over_big_text() {
+        let p = plan(147, 38, Comfortable, false, false, true, 2);
+        assert_eq!((p.zoom, p.big), (2, false));
     }
 }

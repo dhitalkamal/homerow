@@ -214,3 +214,14 @@ fn auto_decides_mostly_by_width() {
     // the window from the screenshot
     assert_eq!(Auto.resolve(151, 43), Large);
 }
+
+#[test]
+fn zoom_starts_at_normal_and_is_saved() {
+    assert_eq!(Settings::default().zoom, 1);
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("p.json");
+    let mut p = Progress::default();
+    p.settings.zoom = 3;
+    save(&path, &p).unwrap();
+    assert_eq!(load(&path).0.settings.zoom, 3);
+}
