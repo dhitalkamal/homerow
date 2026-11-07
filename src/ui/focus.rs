@@ -118,14 +118,15 @@ fn stats_line(app: &App, now: u64) -> Line<'static> {
 
 fn results(f: &mut Frame, area: Rect, app: &App) {
     let Some(r) = app.last_round() else { return };
+    // compare only with rounds of the same mode: code is slower than prose
     let typing: Vec<_> = app
         .progress
         .rounds
         .iter()
-        .filter(|x| x.mode != "cards")
+        .filter(|x| x.mode == r.mode)
         .collect();
     let best = typing.iter().map(|x| x.wpm).max().unwrap_or(0);
-    let prev = typing.iter().rev().skip(1).find(|x| x.mode == r.mode);
+    let prev = typing.iter().rev().nth(1);
     let mut lines: Vec<Line> = bigtext::digits(r.wpm).into_iter().map(Line::raw).collect();
     lines.push(Line::styled("words per minute", dim()));
     lines.push(Line::raw(""));
@@ -175,10 +176,9 @@ fn results(f: &mut Frame, area: Rect, app: &App) {
 }
 
 fn slowest(app: &App, k: usize) -> String {
-    let avg = avg_ms(&app.progress.stats);
-    let mut v: Vec<(char, f64)> = app
-        .progress
-        .stats
+    let stats = app.key_stats_now();
+    let avg = avg_ms(&stats);
+    let mut v: Vec<(char, f64)> = stats
         .iter()
         .filter(|(_, s)| s.n >= MIN_SAMPLES)
         .map(|(c, s)| (*c, weakness(Some(s), avg)))

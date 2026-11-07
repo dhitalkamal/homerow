@@ -1,6 +1,7 @@
 // app state and what each key press does to it. no drawing here, see ui/.
-use crate::cards::{self, Combo, Deck, Key};
+use crate::cards::{self, Combo, Deck, Key, Mods};
 use crate::content::{self, CARDS};
+use crate::history;
 use crate::rng::Rng;
 use crate::session::Session;
 use crate::stats::weak_letters;
@@ -51,11 +52,11 @@ impl Mode {
             Mode::Settings => "settings",
         }
     }
-    fn tag(self) -> &'static str {
+    pub fn tag(self) -> &'static str {
         match self {
-            Mode::Base => "base",
-            Mode::Keys => "keys",
-            Mode::Code => "code",
+            Mode::Base => history::BASE,
+            Mode::Keys => history::KEYS,
+            Mode::Code => history::CODE,
             Mode::Cards => "cards",
             Mode::Progress => "progress",
             Mode::Settings => "settings",
@@ -87,6 +88,8 @@ pub struct App {
     pub notice: Option<String>,
     // selected row on the settings tab
     pub settings_row: usize,
+    // which mode the progress tab shows
+    pub progress_view: history::View,
     // last known terminal size, so auto size can be stepped from
     pub screen: (u16, u16),
     // the terminal understands kitty text sizing (checked at startup)
@@ -113,6 +116,7 @@ impl App {
             deck: None,
             notice,
             settings_row: 0,
+            progress_view: history::View::All,
             screen: (100, 40),
             zoom_ok: false,
             quit: false,
@@ -154,7 +158,7 @@ impl App {
             }
             Input::Tab => self.switch(1),
             Input::BackTab => self.switch(Mode::ALL.len() - 1),
-            _ if self.mode == Mode::Progress => {}
+            _ if self.mode == Mode::Progress => self.progress_input(input),
             _ if self.mode == Mode::Settings => self.settings_input(input, now),
             _ if self.mode == Mode::Cards => self.card_input(input, now),
             Input::Combo(_) => {}
@@ -164,7 +168,12 @@ impl App {
                 }
             }
             Input::Text(ch) => {
-                self.session.press(ch, now, &mut self.progress.stats);
+                let stats = self
+                    .progress
+                    .mode_stats
+                    .entry(self.mode.tag().into())
+                    .or_default();
+                self.session.press(ch, now, stats);
                 self.record_if_done(now);
             }
         }
@@ -212,7 +221,10 @@ impl App {
                 )
             }
             Mode::Keys => {
-                self.focus = weak_letters(&self.progress.stats, 3);
+                self.focus = weak_letters(
+                    &history::merged(&self.progress, &[history::BASE, history::KEYS]),
+                    3,
+                );
                 self.session =
                     Session::new(&content::weak_text(&mut self.rng, &self.focus, 24), None);
             }
@@ -237,11 +249,39 @@ impl App {
         }
     }
 
+    // left/right (or h/l) step through the progress views, wrapping round
+    fn progress_input(&mut self, input: Input) {
+        let step = match input {
+            Input::Text('l') => 1,
+            Input::Text('h') => -1,
+            Input::Combo(c) if c.mods == Mods::default() && c.key == Key::Right => 1,
+            Input::Combo(c) if c.mods == Mods::default() && c.key == Key::Left => -1,
+            _ => return,
+        };
+        let views = history::View::ALL;
+        let i = views
+            .iter()
+            .position(|v| *v == self.progress_view)
+            .unwrap_or(0) as i32;
+        let n = views.len() as i32;
+        self.progress_view = views[((i + step + n) % n) as usize];
+    }
+
     pub fn toast(&self, now: u64) -> Option<&str> {
         self.toast_msg
             .as_ref()
             .filter(|(_, until)| now < *until)
             .map(|(m, _)| m.as_str())
+    }
+
+    // key stats behind the typing screen right now: code has its own,
+    // baseline and weak keys share text stats
+    pub fn key_stats_now(&self) -> crate::stats::KeyStats {
+        if self.mode == Mode::Code {
+            history::merged(&self.progress, &[history::CODE])
+        } else {
+            history::merged(&self.progress, &[history::BASE, history::KEYS])
+        }
     }
 
     pub fn last_round(&self) -> Option<&Round> {

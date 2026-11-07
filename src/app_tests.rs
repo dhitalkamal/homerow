@@ -68,7 +68,7 @@ fn progress_tab_ignores_typing_and_card_keys() {
     a.tick(999_999);
     assert!(a.progress.rounds.is_empty());
     assert_eq!(a.progress.boxes, boxes);
-    assert!(a.progress.stats.is_empty());
+    assert!(a.progress.mode_stats.is_empty());
 }
 
 #[test]
@@ -265,7 +265,7 @@ fn typing_on_the_settings_tab_does_nothing() {
     go(&mut a, Mode::Settings);
     a.handle(Input::Text('a'), 0);
     a.tick(999_999);
-    assert!(a.progress.stats.is_empty() && a.progress.rounds.is_empty());
+    assert!(a.progress.mode_stats.is_empty() && a.progress.rounds.is_empty());
 }
 
 #[test]
@@ -330,4 +330,27 @@ fn settings_zoom_row_does_nothing_without_kitty_support() {
     a.zoom_ok = true;
     a.handle(Input::Text(' '), 0);
     assert_eq!(a.progress.settings.zoom, 2);
+}
+
+#[test]
+fn left_and_right_switch_the_progress_view() {
+    use crate::history::View;
+    let (mut a, _d) = app();
+    go(&mut a, Mode::Progress);
+    assert_eq!(a.progress_view, View::All);
+    a.handle(key(cards::Key::Right), 0);
+    assert_eq!(a.progress_view, View::Base);
+    a.handle(key(cards::Key::Left), 0);
+    a.handle(key(cards::Key::Left), 0);
+    assert_eq!(a.progress_view, View::Code, "wraps around");
+}
+
+#[test]
+fn typing_records_key_stats_under_the_current_mode() {
+    let (mut a, _d) = app();
+    go(&mut a, Mode::Code);
+    let first = a.session.next_char().unwrap();
+    a.handle(Input::Text(first), 0);
+    assert!(a.progress.mode_stats.contains_key("code"));
+    assert!(!a.progress.mode_stats.contains_key("base"));
 }

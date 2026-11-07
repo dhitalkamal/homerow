@@ -93,7 +93,7 @@ fn draw_footer(f: &mut Frame, area: Rect, app: &App, now: u64) {
             ("space", "reveal"),
             ("[ ]", "deck"),
         ],
-        Mode::Progress => &[("tab", "mode"), ("esc", "quit"), ("ctrl + -", "size")],
+        Mode::Progress => &[("left/right", "view"), ("tab", "mode"), ("esc", "quit")],
         Mode::Settings => &[
             ("up/down", "move"),
             ("space", "change"),

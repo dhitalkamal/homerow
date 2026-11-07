@@ -58,9 +58,10 @@ impl Session {
             self.start = Some(now);
             self.last = now;
         }
-        // only letters are tracked, capitals fold into their lowercase key
+        // letters, digits and symbols are tracked (capitals fold into their
+        // lowercase key); spaces and newlines are not
         let key = want.to_ascii_lowercase();
-        let tracked = key.is_ascii_lowercase();
+        let tracked = key.is_ascii_graphic();
         if c != want {
             self.errs += 1;
             self.missed_here = true;
@@ -245,5 +246,15 @@ mod tests {
         // 10 chars over 10.8s
         assert_eq!(s.wpm(10_800), 11);
         assert_eq!(s.elapsed(50_000), 10_800, "elapsed freezes once finished");
+    }
+
+    #[test]
+    fn symbols_and_digits_are_tracked_too() {
+        let mut st = KeyStats::new();
+        let mut s = Session::new("a{1 b", None);
+        typed(&mut s, "a{1 b", 0, 100, &mut st);
+        assert_eq!(st[&'{'].n, 1);
+        assert_eq!(st[&'1'].n, 1);
+        assert!(!st.contains_key(&' '), "spaces are not keys worth drilling");
     }
 }

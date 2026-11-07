@@ -36,12 +36,31 @@ pub fn progress(now: u64) -> Progress {
             'b' => (4, 300),
             _ => (1, 210 + rng.below(40) as u64),
         };
-        p.stats.insert(
+        p.mode_stats.entry("base".into()).or_default().insert(
             c,
             KeyStat {
                 n: 60,
                 e,
                 ms: 60 * avg,
+            },
+        );
+    }
+    // code: brackets and symbols are the slow part
+    for (c, e, avg) in [
+        ('{', 6, 520),
+        ('}', 4, 480),
+        ('(', 3, 400),
+        (')', 3, 390),
+        (';', 5, 450),
+        ('_', 7, 560),
+        ('=', 2, 330),
+    ] {
+        p.mode_stats.entry("code".into()).or_default().insert(
+            c,
+            KeyStat {
+                n: 30,
+                e,
+                ms: 30 * avg,
             },
         );
     }
@@ -88,7 +107,7 @@ mod tests {
     #[test]
     fn demo_has_obvious_weak_keys_and_a_live_streak() {
         let p = progress(NOW);
-        let weak = weak_letters(&p.stats, 3);
+        let weak = weak_letters(&crate::history::merged(&p, &["base", "keys"]), 3);
         assert!(weak.contains(&'q') && weak.contains(&'z'), "{weak:?}");
         assert!(streak(&p.days, NOW) >= 5);
     }

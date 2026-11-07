@@ -23,8 +23,16 @@ Tab cycles through them, Esc quits.
 - code: short real snippets (Python, Go, Rust, TypeScript, SQL, shell, git).
   Indentation after Return is typed for you.
 - shortcuts: flash cards for text editing, macOS, Finder, zsh and IntelliJ.
-- progress: dashboard with latest and best speed, accuracy, day streak, a
-  speed trend chart, weak keys and how far along each shortcut deck is.
+- progress: one view per mode (left/right switches between all modes,
+  baseline, weak keys and code). Each view shows where you are now (average of
+  the last 3 rounds), first round to now, best speed, accuracy, a speed trend
+  (one line per mode) and that mode's weak keys. Code tracks symbols and digits
+  too. Shortcut deck progress sits underneath.
+
+Speed and key stats are tracked separately per mode, because code is slower
+than prose and should not drag your baseline down. The weak keys drill uses
+baseline and weak keys stats together. The results screen after a round only
+compares with earlier rounds of the same mode.
 - settings: switch the on-screen keyboard and hands on or off, plus finger
   colors, weak key heatmap, hidden key labels and size. Up/down (or j/k) move,
   space or return changes a row, left/right set it. A live preview shows the

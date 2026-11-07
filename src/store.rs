@@ -7,7 +7,8 @@ use std::{fs, io};
 
 // bump when the shape changes in a way old files can't be read as
 // 2: density gained auto, version 1 files are moved to it
-pub const VERSION: u32 = 2;
+// 3: key stats are kept per mode, version 2 combined stats go to baseline
+pub const VERSION: u32 = 3;
 const MAX_ROUNDS: usize = 200;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -22,7 +23,11 @@ pub struct Round {
 #[serde(default)]
 pub struct Progress {
     pub version: u32,
+    // only read from version 2 files, moved into mode_stats on load
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub stats: KeyStats,
+    // key stats per round tag (base, keys, code)
+    pub mode_stats: BTreeMap<String, KeyStats>,
     pub rounds: Vec<Round>,
     pub boxes: BTreeMap<String, u32>,
     // practice ms per utc day, keyed YYYY-MM-DD
@@ -118,6 +123,7 @@ impl Default for Progress {
         Progress {
             version: VERSION,
             stats: KeyStats::new(),
+            mode_stats: BTreeMap::new(),
             rounds: Vec::new(),
             boxes: BTreeMap::new(),
             days: BTreeMap::new(),
@@ -157,8 +163,20 @@ pub fn load(path: &Path) -> (Progress, Option<String>) {
             // density could only be saved as the default before auto existed
             if p.version < 2 {
                 p.density = Density::Auto;
-                p.version = VERSION;
             }
+            // before version 3 all modes shared one set of key stats; they
+            // cannot be split after the fact, so they count as baseline
+            if p.version < 3 && !p.stats.is_empty() {
+                let old = std::mem::take(&mut p.stats);
+                let base = p.mode_stats.entry("base".into()).or_default();
+                for (c, s) in old {
+                    let e = base.entry(c).or_default();
+                    e.n += s.n;
+                    e.e += s.e;
+                    e.ms += s.ms;
+                }
+            }
+            p.version = VERSION;
             (p, None)
         }
         Err(err) => {

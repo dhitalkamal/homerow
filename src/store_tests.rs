@@ -98,7 +98,8 @@ fn older_file_missing_fields_still_loads() {
     .unwrap();
     let (p, warn) = load(&path);
     assert_eq!(warn, None);
-    assert_eq!(p.stats[&'a'].n, 5);
+    // old combined key stats now live under baseline
+    assert_eq!(p.mode_stats["base"][&'a'].n, 5);
     assert!(p.rounds.is_empty());
     // a version 1 file is migrated to auto size
     assert_eq!(p.density, Density::Auto);
@@ -224,4 +225,39 @@ fn zoom_starts_at_normal_and_is_saved() {
     p.settings.zoom = 3;
     save(&path, &p).unwrap();
     assert_eq!(load(&path).0.settings.zoom, 3);
+}
+
+#[test]
+fn version_2_key_stats_move_into_the_baseline_bucket() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("p.json");
+    fs::write(
+        &path,
+        r#"{"version":2,"stats":{"a":{"n":9,"e":1,"ms":900}}}"#,
+    )
+    .unwrap();
+    let (p, _) = load(&path);
+    assert_eq!(p.version, VERSION);
+    assert_eq!(p.mode_stats["base"][&'a'].n, 9);
+    assert!(
+        p.stats.is_empty(),
+        "old combined stats are moved, not kept twice"
+    );
+}
+
+#[test]
+fn per_mode_key_stats_are_saved() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("p.json");
+    let mut p = Progress::default();
+    p.mode_stats.entry("code".into()).or_default().insert(
+        '{',
+        KeyStat {
+            n: 6,
+            e: 2,
+            ms: 1200,
+        },
+    );
+    save(&path, &p).unwrap();
+    assert_eq!(load(&path).0.mode_stats["code"][&'{'].e, 2);
 }
