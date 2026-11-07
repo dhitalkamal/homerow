@@ -41,6 +41,8 @@ pub struct Settings {
     pub finger_colors: bool,
     pub heatmap: bool,
     pub hide_labels: bool,
+    // typing text drawn with block letters, 4 columns by 4 rows each
+    pub big_text: bool,
 }
 
 impl Default for Settings {
@@ -51,6 +53,7 @@ impl Default for Settings {
             finger_colors: true,
             heatmap: false,
             hide_labels: false,
+            big_text: true,
         }
     }
 }

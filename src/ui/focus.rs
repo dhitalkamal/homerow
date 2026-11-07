@@ -13,6 +13,11 @@ use ratatui::widgets::Paragraph;
 // the keyboard needs this many columns, narrower windows drop it
 const KEYBOARD_MIN_WIDTH: u16 = 62;
 const LARGE_KEYBOARD_MIN_WIDTH: u16 = 122;
+// big text: each letter is 4 columns, each row 4 lines plus a blank line
+const BIG_LETTER: u16 = 4;
+const BIG_ROW: u16 = 5;
+const BIG_MIN_LETTERS: u16 = 24;
+const BIG_MAX_WIDTH: u16 = 160;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kbd {
@@ -33,17 +38,43 @@ pub struct Plan {
     pub kbd: Kbd,
     // finger bars under the keyboard
     pub hands: bool,
+    // block letter text, each row 4 lines tall plus a blank line
+    pub big: bool,
 }
 
-// keyboard and hands come from settings; they only show when there is room
-pub fn plan(width: u16, height: u16, density: Density, keyboard: bool, hands: bool) -> Plan {
+// keyboard, hands and big text come from settings; each only shows when it fits
+pub fn plan(
+    width: u16,
+    height: u16,
+    density: Density,
+    keyboard: bool,
+    hands: bool,
+    big: bool,
+) -> Plan {
     let (mut rows, spaced, w) = match density {
         Density::Compact => (3, false, 60),
         Density::Comfortable | Density::Auto => (3, true, 70),
         Density::Spacious => (4, true, 84),
         Density::Large => (4, true, 110),
     };
-    let per = if spaced { 2 } else { 1 };
+    // big text: as many letters as fit, up to 40, if at least 24 fit
+    let big_width = width.saturating_sub(4).min(BIG_MAX_WIDTH);
+    let mut big_rows = if keyboard { 2 } else { 3 };
+    while big_rows > 0 && big_rows * BIG_ROW + 1 > height {
+        big_rows -= 1;
+    }
+    let big = big && big_width / BIG_LETTER >= BIG_MIN_LETTERS && big_rows > 0;
+    let (spaced, w) = if big { (true, big_width) } else { (spaced, w) };
+    if big {
+        rows = big_rows;
+    }
+    let per = if big {
+        BIG_ROW
+    } else if spaced {
+        2
+    } else {
+        1
+    };
     // the stats line, plus a blank above it when rows are not spaced
     let fixed = if spaced { 1 } else { 2 };
     while rows > 1 && rows * per + fixed > height {
@@ -79,6 +110,7 @@ pub fn plan(width: u16, height: u16, density: Density, keyboard: bool, hands: bo
         text_width: w.min(width),
         kbd,
         hands,
+        big,
     }
 }
 
@@ -88,14 +120,28 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, now: u64, density: Density) 
         return results(f, area, app);
     }
     let opts = app.progress.settings;
-    let p = plan(area.width, area.height, density, opts.keyboard, opts.hands);
+    let p = plan(
+        area.width,
+        area.height,
+        density,
+        opts.keyboard,
+        opts.hands,
+        opts.big_text,
+    );
     let kbd_h = match p.kbd {
         Kbd::Large => keyboard::LARGE_HEIGHT,
         Kbd::Full => keyboard::FULL_HEIGHT,
         Kbd::Compact => keyboard::COMPACT_HEIGHT,
         Kbd::Hidden => 0,
     };
-    let text_h = p.rows * if p.spaced { 2 } else { 1 };
+    let text_h = p.rows
+        * if p.big {
+            BIG_ROW
+        } else if p.spaced {
+            2
+        } else {
+            1
+        };
     let hands_h = if p.hands { hands::HEIGHT } else { 0 };
     // a little above center reads as centered (more room below than above)
     let [_, text, _, stats, _, kbd, _, hand_area, _] = Layout::vertical([
@@ -110,7 +156,12 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, now: u64, density: Density) 
         Constraint::Fill(5),
     ])
     .areas(area);
-    prompt::render(f, centered(text, p.text_width, text.height), app, p.spaced);
+    let text_area = centered(text, p.text_width, text.height);
+    if p.big {
+        prompt::render_big(f, text_area, app, p.rows);
+    } else {
+        prompt::render(f, text_area, app, p.spaced);
+    }
     f.render_widget(
         Paragraph::new(stats_line(app, now)).alignment(Alignment::Center),
         stats,
@@ -237,12 +288,12 @@ mod tests {
     use Density::*;
 
     fn on(w: u16, h: u16, d: Density) -> Plan {
-        plan(w, h, d, true, true)
+        plan(w, h, d, true, true, false)
     }
 
     #[test]
     fn keyboard_off_means_text_only() {
-        let p = plan(120, 50, Comfortable, false, true);
+        let p = plan(120, 50, Comfortable, false, true, false);
         assert_eq!((p.kbd, p.hands), (Kbd::Hidden, false));
     }
 
@@ -259,7 +310,7 @@ mod tests {
 
     #[test]
     fn hands_switch_off_keeps_the_keyboard() {
-        let p = plan(100, 40, Comfortable, true, false);
+        let p = plan(100, 40, Comfortable, true, false, false);
         assert_eq!((p.kbd, p.hands), (Kbd::Full, false));
     }
 
@@ -279,7 +330,8 @@ mod tests {
                 spaced: false,
                 text_width: 60,
                 kbd: Kbd::Hidden,
-                hands: false
+                hands: false,
+                big: false
             }
         );
     }
@@ -318,5 +370,39 @@ mod tests {
         assert_eq!(on(185, 28, Large).kbd, Kbd::Full);
         let narrow = on(100, 45, Large);
         assert_eq!((narrow.kbd, narrow.text_width), (Kbd::Full, 100));
+    }
+
+    fn big(w: u16, h: u16, keyboard: bool) -> Plan {
+        plan(w, h, Large, keyboard, false, true)
+    }
+
+    #[test]
+    fn big_text_uses_the_width_with_three_rows() {
+        let p = big(147, 38, false);
+        assert_eq!((p.big, p.rows, p.text_width), (true, 3, 143));
+        assert_eq!(
+            big(200, 38, false).text_width,
+            160,
+            "at most 40 letters a line"
+        );
+    }
+
+    #[test]
+    fn big_text_drops_to_two_rows_with_the_keyboard() {
+        let p = big(147, 38, true);
+        assert_eq!((p.big, p.rows), (true, 2));
+    }
+
+    #[test]
+    fn big_text_needs_room_for_24_letters_and_one_row() {
+        assert!(!big(90, 38, false).big, "86 columns fit 21 letters");
+        assert!(big(100, 38, false).big, "96 columns fit 24 letters");
+        assert_eq!(big(147, 12, false).rows, 2);
+        assert!(!big(147, 5, false).big);
+    }
+
+    #[test]
+    fn big_text_switch_off_keeps_normal_text() {
+        assert!(!plan(147, 38, Large, false, false, false).big);
     }
 }

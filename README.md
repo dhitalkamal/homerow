@@ -41,6 +41,14 @@ Each letter on the keyboard is tinted by the finger that presses it (8 fixed
 colors, so no theme can merge two fingers), the next key fills with that color,
 and the line under the keyboard names the finger.
 
+## big text
+
+On wide terminals the typing text is drawn in big block letters, about four
+times the normal size. They are made of ordinary block characters, so this works
+in any terminal, not just kitty. It switches on when at least 24 letters fit on
+a line (3 rows, or 2 when the on-screen keyboard is on) and falls back to normal
+text otherwise. Turn it off with the "big text" row on the settings tab.
+
 ## size and zoom
 
 Zoom is your terminal's job: in kitty, cmd+= and cmd+- change the font size.

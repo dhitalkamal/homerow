@@ -227,7 +227,9 @@ fn settings_tab_lists_switches_with_a_live_preview() {
 
 #[test]
 fn auto_size_shows_more_text_on_a_big_terminal() {
-    let (a, _d) = app();
+    // plain text rows are counted here, so big block letters are switched off
+    let (mut a, _d) = app();
+    a.progress.settings.big_text = false;
     let rows_of_text = |w, h| {
         let s = screen(&a, w, h);
         let rows: Vec<&str> = s.lines().collect();
@@ -261,4 +263,28 @@ fn footer_avoids_ligature_pairs() {
     for pair in ["/=", "!=", "=>", "->", "<="] {
         assert!(!footer.contains(pair), "{pair:?} in {footer:?}");
     }
+}
+
+#[test]
+fn big_text_draws_block_letters_on_a_wide_terminal() {
+    let (a, _d) = app();
+    let s = screen(&a, 150, 40);
+    // quadrant and full block characters make up the big letters
+    let blocks = s
+        .chars()
+        .filter(|c| ('\u{2580}'..='\u{259f}').contains(c))
+        .count();
+    assert!(blocks > 50, "no block letters\n{s}");
+    assert!(
+        !s.contains(&first_word(&a)),
+        "text drawn small as well\n{s}"
+    );
+    assert!(s.contains("wpm"));
+}
+
+#[test]
+fn narrow_terminal_keeps_normal_text_even_with_big_text_on() {
+    let (a, _d) = app();
+    let s = screen(&a, 90, 40);
+    assert!(s.contains(&first_word(&a)), "{s}");
 }

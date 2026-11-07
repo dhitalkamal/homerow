@@ -7,6 +7,7 @@ use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
+use tui_big_text::{BigText, PixelSize};
 
 // splits text into [start, end) line ranges no wider than width. a newline ends
 // its line (and belongs to it); long lines break after the last space that fits.
@@ -36,15 +37,51 @@ pub fn lines(text: &[char], width: usize) -> Vec<(usize, usize)> {
     out
 }
 
-// spaced puts a blank line after each text row
-pub fn render(f: &mut Frame, area: Rect, app: &App, spaced: bool) {
+// typed text fades, what you still have to read stays bright
+fn style_for(cell: Cell) -> Style {
+    match cell {
+        Cell::Done => Style::new().add_modifier(Modifier::DIM),
+        Cell::Current => Style::new()
+            .bg(super::ACCENT)
+            .fg(Color::Black)
+            .add_modifier(Modifier::BOLD),
+        Cell::Missed => Style::new().bg(super::BAD).fg(Color::Black),
+        Cell::Pending => Style::new(),
+    }
+}
+
+// one text row as styled spans; newline shows as `newline`
+fn styled_row(app: &App, a: usize, b: usize, newline: &str) -> Line<'static> {
     let s = &app.session;
-    let ranges = lines(&s.text, area.width.max(10) as usize);
+    Line::from(
+        (a..b)
+            .map(|i| {
+                let ch = s.text[i];
+                let shown = if ch == '\n' {
+                    newline.to_string()
+                } else {
+                    ch.to_string()
+                };
+                Span::styled(shown, style_for(s.cell(i)))
+            })
+            .collect::<Vec<_>>(),
+    )
+}
+
+// the row ranges for this width and the index of the row holding the cursor
+fn rows_and_cursor(app: &App, width: usize) -> (Vec<(usize, usize)>, usize) {
+    let s = &app.session;
+    let ranges = lines(&s.text, width);
     let cur = ranges
         .iter()
         .position(|&(a, b)| s.pos() >= a && s.pos() < b)
         .unwrap_or(0);
-    let first = cur.saturating_sub(1);
+    (ranges, cur)
+}
+
+// spaced puts a blank line after each text row
+pub fn render(f: &mut Frame, area: Rect, app: &App, spaced: bool) {
+    let (ranges, cur) = rows_and_cursor(app, area.width.max(10) as usize);
     let return_glyph = char::from_u32(0x23CE).unwrap_or('|').to_string();
     let rows = if spaced {
         (area.height as usize).div_ceil(2)
@@ -53,32 +90,10 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, spaced: bool) {
     };
     let out: Vec<Line> = ranges
         .iter()
-        .skip(first)
+        .skip(cur.saturating_sub(1))
         .take(rows)
         .flat_map(|&(a, b)| {
-            let text = Line::from(
-                (a..b)
-                    .map(|i| {
-                        let ch = s.text[i];
-                        let style = match s.cell(i) {
-                            // typed text fades, what you still have to read stays bright
-                            Cell::Done => Style::new().add_modifier(Modifier::DIM),
-                            Cell::Current => Style::new()
-                                .bg(super::ACCENT)
-                                .fg(Color::Black)
-                                .add_modifier(Modifier::BOLD),
-                            Cell::Missed => Style::new().bg(super::BAD).fg(Color::Black),
-                            Cell::Pending => Style::new(),
-                        };
-                        let shown = if ch == '\n' {
-                            return_glyph.clone()
-                        } else {
-                            ch.to_string()
-                        };
-                        Span::styled(shown, style)
-                    })
-                    .collect::<Vec<_>>(),
-            );
+            let text = styled_row(app, a, b, &return_glyph);
             if spaced {
                 vec![text, Line::raw("")]
             } else {
@@ -87,6 +102,31 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, spaced: bool) {
         })
         .collect();
     f.render_widget(Paragraph::new(out), area);
+}
+
+// block letter text that works in any terminal: each letter is 4 columns by
+// 4 rows of quadrant characters, rows are 5 lines apart
+pub fn render_big(f: &mut Frame, area: Rect, app: &App, rows: u16) {
+    let letters = (area.width / 4).max(1) as usize;
+    let (ranges, cur) = rows_and_cursor(app, letters);
+    // with 3 or more rows keep the previous row in view, like normal text
+    let first = if rows >= 3 {
+        cur.saturating_sub(1)
+    } else {
+        cur
+    };
+    for (i, &(a, b)) in ranges.iter().skip(first).take(rows as usize).enumerate() {
+        let y = area.y + i as u16 * 5;
+        if y + 4 > area.y + area.height {
+            break;
+        }
+        // the return glyph is not in the block font, a space keeps the cursor visible
+        let big = BigText::builder()
+            .pixel_size(PixelSize::Quadrant)
+            .lines(vec![styled_row(app, a, b, " ")])
+            .build();
+        f.render_widget(big, Rect::new(area.x, y, area.width, 4));
+    }
 }
 
 #[cfg(test)]

@@ -246,7 +246,11 @@ fn space_toggles_the_keyboard_and_saves() {
 fn left_and_right_change_the_selected_setting() {
     let (mut a, _d) = app();
     go(&mut a, Mode::Settings);
-    for _ in 0..5 {
+    let size_row = crate::settings::ITEMS
+        .iter()
+        .position(|i| *i == crate::settings::Item::Size)
+        .unwrap();
+    for _ in 0..size_row {
         a.handle(key(cards::Key::Down), 0);
     }
     a.handle(key(cards::Key::Right), 0);

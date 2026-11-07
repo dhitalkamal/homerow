@@ -8,15 +8,17 @@ pub enum Item {
     FingerColors,
     Heatmap,
     HideLabels,
+    BigText,
     Size,
 }
 
-pub const ITEMS: [Item; 6] = [
+pub const ITEMS: [Item; 7] = [
     Item::Keyboard,
     Item::Hands,
     Item::FingerColors,
     Item::Heatmap,
     Item::HideLabels,
+    Item::BigText,
     Item::Size,
 ];
 
@@ -28,6 +30,7 @@ impl Item {
             Item::FingerColors => "finger colors",
             Item::Heatmap => "weak key heatmap",
             Item::HideLabels => "hide key labels",
+            Item::BigText => "big text",
             Item::Size => "size",
         }
     }
@@ -43,6 +46,7 @@ impl Item {
             Item::FingerColors => s.finger_colors,
             Item::Heatmap => s.heatmap,
             Item::HideLabels => s.hide_labels,
+            Item::BigText => s.big_text,
             Item::Size => false,
         };
         if on { "on" } else { "off" }
@@ -58,6 +62,7 @@ fn switch(item: Item, p: &mut Progress) -> Option<&mut bool> {
         Item::FingerColors => &mut s.finger_colors,
         Item::Heatmap => &mut s.heatmap,
         Item::HideLabels => &mut s.hide_labels,
+        Item::BigText => &mut s.big_text,
         Item::Size => return None,
     })
 }
@@ -101,6 +106,9 @@ mod tests {
         assert_eq!(Item::Keyboard.value(&p), "off");
         toggle(Item::HideLabels, &mut p);
         assert!(p.settings.hide_labels);
+        assert_eq!(Item::BigText.value(&p), "on");
+        toggle(Item::BigText, &mut p);
+        assert!(!p.settings.big_text);
     }
 
     #[test]
