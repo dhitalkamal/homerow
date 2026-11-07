@@ -1,0 +1,235 @@
+// questions about your progress, answered per mode: which rounds, how far
+// you came since the first one, and which keys are weak in a given view.
+use crate::stats::{KeyStat, KeyStats};
+use crate::store::{Progress, Round};
+
+// round tags as saved in progress.json
+pub const BASE: &str = "base";
+pub const KEYS: &str = "keys";
+pub const CODE: &str = "code";
+pub const MISTAKES: &str = "mistakes";
+
+// what the progress tab is showing
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum View {
+    All,
+    Base,
+    Keys,
+    Code,
+    Mistakes,
+}
+
+impl View {
+    pub const ALL: [View; 5] = [
+        View::All,
+        View::Base,
+        View::Keys,
+        View::Code,
+        View::Mistakes,
+    ];
+    pub fn label(self) -> &'static str {
+        match self {
+            View::All => "all modes",
+            View::Base => "baseline",
+            View::Keys => "weak keys",
+            View::Code => "code",
+            View::Mistakes => "mistakes",
+        }
+    }
+    // round tags this view covers
+    pub fn modes(self) -> &'static [&'static str] {
+        match self {
+            View::All => &[BASE, KEYS, CODE, MISTAKES],
+            View::Base => &[BASE],
+            View::Keys => &[KEYS],
+            View::Code => &[CODE],
+            View::Mistakes => &[MISTAKES],
+        }
+    }
+}
+
+// first round against now, for one view
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Change {
+    pub first: u32,
+    // average of the last 3 rounds, so one lucky round does not count as progress
+    pub now: u32,
+    pub best: u32,
+    pub rounds: usize,
+}
+
+impl Change {
+    pub fn delta(&self) -> i64 {
+        self.now as i64 - self.first as i64
+    }
+}
+
+pub fn rounds(p: &Progress, view: View) -> Vec<&Round> {
+    let modes = view.modes();
+    p.rounds
+        .iter()
+        .filter(|r| modes.contains(&r.mode.as_str()))
+        .collect()
+}
+
+pub fn change(p: &Progress, view: View) -> Option<Change> {
+    let rs = rounds(p, view);
+    let first = rs.first()?.wpm;
+    let recent = &rs[rs.len().saturating_sub(3)..];
+    let now = recent.iter().map(|r| r.wpm).sum::<u32>() / recent.len() as u32;
+    let best = rs.iter().map(|r| r.wpm).max().unwrap_or(0);
+    Some(Change {
+        first,
+        now,
+        best,
+        rounds: rs.len(),
+    })
+}
+
+// key stats summed over the given round tags
+pub fn merged(p: &Progress, modes: &[&str]) -> KeyStats {
+    let mut out = KeyStats::new();
+    for m in modes {
+        for (c, s) in p.mode_stats.get(*m).into_iter().flatten() {
+            let e: &mut KeyStat = out.entry(*c).or_default();
+            e.n += s.n;
+            e.e += s.e;
+            e.ms += s.ms;
+        }
+    }
+    out
+}
+
+// the stats a view's weak keys come from. text (baseline plus weak keys) for
+// the all view, since that is what the weak keys drill trains.
+pub fn view_stats(p: &Progress, view: View) -> KeyStats {
+    match view {
+        View::All => merged(p, &[BASE, KEYS]),
+        v => merged(p, v.modes()),
+    }
+}
+
+// every round in the view, newest first
+pub fn history_rows(p: &Progress, view: View) -> Vec<&Round> {
+    let mut rs = rounds(p, view);
+    rs.reverse();
+    rs
+}
+
+// how long ago, in the largest unit that fits
+pub fn ago(now: u64, then: u64) -> String {
+    let secs = now.saturating_sub(then) / 1000;
+    match secs {
+        0..60 => "just now".to_string(),
+        60..3600 => format!("{}m ago", secs / 60),
+        3600..86_400 => format!("{}h ago", secs / 3600),
+        _ => format!("{}d ago", secs / 86_400),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn round(mode: &str, wpm: u32, at: u64) -> Round {
+        Round {
+            mode: mode.into(),
+            wpm,
+            acc: 95,
+            at_ms: at,
+        }
+    }
+
+    fn sample() -> Progress {
+        let mut p = Progress::default();
+        for (i, w) in [20, 22, 30, 32, 34].iter().enumerate() {
+            p.add_round(round(BASE, *w, i as u64 * 1000), 60_000);
+        }
+        p.add_round(round(CODE, 15, 9_000), 60_000);
+        p.add_round(round(CODE, 25, 10_000), 60_000);
+        p
+    }
+
+    #[test]
+    fn rounds_are_filtered_by_view() {
+        let p = sample();
+        assert_eq!(rounds(&p, View::Base).len(), 5);
+        assert_eq!(rounds(&p, View::Code).len(), 2);
+        assert_eq!(rounds(&p, View::Keys).len(), 0);
+        assert_eq!(rounds(&p, View::All).len(), 7);
+    }
+
+    #[test]
+    fn change_compares_the_first_round_with_the_recent_average() {
+        let c = change(&sample(), View::Base).unwrap();
+        assert_eq!((c.first, c.now, c.best, c.rounds), (20, 32, 34, 5));
+        assert_eq!(c.delta(), 12);
+    }
+
+    #[test]
+    fn change_with_fewer_than_three_rounds_averages_what_there_is() {
+        let c = change(&sample(), View::Code).unwrap();
+        assert_eq!((c.first, c.now), (15, 20));
+        assert_eq!(change(&sample(), View::Keys), None);
+    }
+
+    #[test]
+    fn merged_sums_key_stats_across_modes() {
+        let mut p = Progress::default();
+        p.mode_stats.entry(BASE.into()).or_default().insert(
+            'a',
+            KeyStat {
+                n: 5,
+                e: 1,
+                ms: 500,
+            },
+        );
+        p.mode_stats.entry(KEYS.into()).or_default().insert(
+            'a',
+            KeyStat {
+                n: 3,
+                e: 0,
+                ms: 300,
+            },
+        );
+        p.mode_stats.entry(CODE.into()).or_default().insert(
+            '{',
+            KeyStat {
+                n: 4,
+                e: 2,
+                ms: 900,
+            },
+        );
+        let text = view_stats(&p, View::All);
+        assert_eq!(
+            text[&'a'],
+            KeyStat {
+                n: 8,
+                e: 1,
+                ms: 800
+            }
+        );
+        assert!(
+            !text.contains_key(&'{'),
+            "code symbols stay out of text stats"
+        );
+        assert_eq!(view_stats(&p, View::Code)[&'{'].e, 2);
+    }
+
+    #[test]
+    fn ago_reads_like_a_person_would_say_it() {
+        let now = 10 * 86_400_000;
+        assert_eq!(ago(now, now - 20_000), "just now");
+        assert_eq!(ago(now, now - 5 * 60_000), "5m ago");
+        assert_eq!(ago(now, now - 3 * 3_600_000), "3h ago");
+        assert_eq!(ago(now, now - 2 * 86_400_000), "2d ago");
+    }
+
+    #[test]
+    fn history_lists_newest_first_for_the_view() {
+        let p = sample();
+        let rows = history_rows(&p, View::Code);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].wpm, 25, "newest first");
+    }
+}
