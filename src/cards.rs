@@ -17,6 +17,8 @@ pub enum Deck {
     Browser,
     Tmux,
     Vim,
+    // a deck from your own deck file, by name
+    Custom(&'static str),
 }
 
 impl Deck {
@@ -42,6 +44,7 @@ impl Deck {
             Deck::Browser => "Chrome / Arc",
             Deck::Tmux => "tmux",
             Deck::Vim => "vim",
+            Deck::Custom(name) => name,
         }
     }
 }
@@ -57,7 +60,10 @@ pub struct Card {
 
 impl Card {
     pub fn id(&self) -> String {
-        format!("{:?}:{}", self.deck, self.combo).to_lowercase()
+        match self.deck {
+            Deck::Custom(name) => format!("my:{name}:{}", self.combo).to_lowercase(),
+            deck => format!("{deck:?}:{}", self.combo).to_lowercase(),
+        }
     }
 }
 

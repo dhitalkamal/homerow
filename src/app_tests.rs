@@ -373,3 +373,23 @@ fn bracket_mid_sequence_is_a_key_not_a_deck_change() {
     );
     assert_eq!(a.deck, deck);
 }
+
+#[test]
+fn custom_decks_join_the_deck_switch_and_grade_like_any_card() {
+    use crate::deckfile::{Entry, to_cards};
+    let (mut a, _d) = app();
+    a.add_cards(to_cards(vec![Entry {
+        deck: "Figma".into(),
+        action: "Duplicate".into(),
+        keys: "cmd+D".into(),
+    }]));
+    let figma = a.decks().last().copied().unwrap();
+    assert_eq!(figma.label(), "Figma");
+    a.mode = Mode::Cards;
+    a.handle(Input::Text('['), 0);
+    assert_eq!(a.deck, Some(figma), "wraps back to the custom deck");
+    assert_eq!(a.cards[a.card].action, "Duplicate");
+    a.handle(combo("cmd+D"), 0);
+    assert!(matches!(a.card_state, CardState::Done(_)));
+    assert_eq!(a.progress.boxes["my:figma:cmd+d"], 1);
+}
