@@ -64,6 +64,8 @@ pub struct Settings {
     pub test: crate::baseline::Length,
     pub punctuation: bool,
     pub numbers: bool,
+    // race your best: a ghost at your personal-best pace
+    pub ghost: bool,
 }
 
 impl Default for Settings {
@@ -80,6 +82,7 @@ impl Default for Settings {
             test: crate::baseline::Length::Time(60),
             punctuation: false,
             numbers: false,
+            ghost: true,
         }
     }
 }

@@ -22,9 +22,10 @@ pub enum Item {
     TestLength,
     Punctuation,
     Numbers,
+    Ghost,
 }
 
-pub const ITEMS: [Item; 12] = [
+pub const ITEMS: [Item; 13] = [
     Item::Keyboard,
     Item::Hands,
     Item::FingerColors,
@@ -37,6 +38,7 @@ pub const ITEMS: [Item; 12] = [
     Item::TestLength,
     Item::Punctuation,
     Item::Numbers,
+    Item::Ghost,
 ];
 
 impl Item {
@@ -54,6 +56,7 @@ impl Item {
             Item::TestLength => "test length",
             Item::Punctuation => "punctuation",
             Item::Numbers => "numbers",
+            Item::Ghost => "race your best",
         }
     }
 
@@ -86,6 +89,7 @@ impl Item {
             Item::BigText => s.big_text,
             Item::Punctuation => s.punctuation,
             Item::Numbers => s.numbers,
+            Item::Ghost => s.ghost,
             Item::Zoom | Item::Size | Item::Goal | Item::TestLength => false,
         };
         if on { "on" } else { "off" }.to_string()
@@ -104,6 +108,7 @@ fn switch(item: Item, p: &mut Progress) -> Option<&mut bool> {
         Item::BigText => &mut s.big_text,
         Item::Punctuation => &mut s.punctuation,
         Item::Numbers => &mut s.numbers,
+        Item::Ghost => &mut s.ghost,
         Item::Zoom | Item::Size | Item::Goal | Item::TestLength => return None,
     })
 }
@@ -259,5 +264,13 @@ mod tests {
         assert_eq!(Item::TestLength.value(&p), "25 words");
         toggle(Item::Punctuation, &mut p);
         assert!(p.settings.punctuation);
+    }
+
+    #[test]
+    fn ghost_is_on_by_default_and_can_be_switched_off() {
+        let mut p = Progress::default();
+        assert_eq!(Item::Ghost.value(&p), "on");
+        toggle(Item::Ghost, &mut p);
+        assert!(!p.settings.ghost);
     }
 }

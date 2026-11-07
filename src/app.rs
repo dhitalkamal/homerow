@@ -87,6 +87,10 @@ pub struct App {
     pub mode: Mode,
     pub session: Session,
     pub focus: Vec<char>,
+    // race your best: the pace of your best for this mode and test, and the
+    // letter the ghost is on (updated every tick while a round runs)
+    pub ghost_wpm: Option<u32>,
+    pub ghost_at: Option<usize>,
     pub progress: Progress,
     pub path: PathBuf,
     pub card: usize,
@@ -122,6 +126,8 @@ impl App {
             mode: Mode::Base,
             session: Session::new("", None),
             focus: Vec::new(),
+            ghost_wpm: None,
+            ghost_at: None,
             progress,
             path,
             card: 0,
@@ -202,6 +208,13 @@ impl App {
             _ if self.mode.is_typing() => {
                 self.session.tick(now);
                 self.record_if_done(now);
+                self.ghost_at = match self.ghost_wpm {
+                    Some(w) if self.session.elapsed(now) > 0 && !self.session.is_done() => {
+                        let last = self.session.text.len().saturating_sub(1);
+                        Some(history::ghost_pos(w, self.session.elapsed(now)).min(last))
+                    }
+                    _ => None,
+                };
             }
             _ => {}
         }
@@ -240,6 +253,7 @@ impl App {
 
     fn restart(&mut self) {
         self.recorded = false;
+        self.ghost_at = None;
         match self.mode {
             Mode::Base => {
                 let s = self.progress.settings;
@@ -266,6 +280,21 @@ impl App {
             Mode::Cards => self.next_card(),
             Mode::Progress | Mode::Settings => {}
         }
+        self.ghost_wpm = self.ghost_pace();
+    }
+
+    // the best to race this round, if racing is on and there is one
+    fn ghost_pace(&self) -> Option<u32> {
+        if !self.progress.settings.ghost || !self.mode.is_typing() {
+            return None;
+        }
+        let s = self.progress.settings;
+        let test = if self.mode == Mode::Base {
+            baseline::label(s.test, s.punctuation, s.numbers)
+        } else {
+            String::new()
+        };
+        history::best_for(&self.progress, self.mode.tag(), &test)
     }
 
     fn next_card(&mut self) {

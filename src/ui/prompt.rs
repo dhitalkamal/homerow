@@ -50,6 +50,18 @@ fn style_for(cell: Cell) -> Style {
     }
 }
 
+// style of one letter, with the ghost's gray block (race your best) on top;
+// every drawer (normal, big, kitty zoom) goes through here
+fn cell_style(app: &App, i: usize) -> Style {
+    let cell = app.session.cell(i);
+    let style = style_for(cell);
+    if app.ghost_at == Some(i) && matches!(cell, Cell::Done | Cell::Pending) {
+        style.bg(super::KEYCAP)
+    } else {
+        style
+    }
+}
+
 // one text row as styled spans; newline shows as `newline`
 fn styled_row(app: &App, a: usize, b: usize, newline: &str) -> Line<'static> {
     let s = &app.session;
@@ -62,7 +74,7 @@ fn styled_row(app: &App, a: usize, b: usize, newline: &str) -> Line<'static> {
                 } else {
                     ch.to_string()
                 };
-                Span::styled(shown, style_for(s.cell(i)))
+                Span::styled(shown, cell_style(app, i))
             })
             .collect::<Vec<_>>(),
     )
@@ -149,9 +161,9 @@ pub fn zoom_runs(area: Rect, app: &App, rows: u16, scale: u16) -> Vec<crate::zoo
         if let Some(&(a, b)) = ranges.get(first + row) {
             let mut i = a;
             while i < b {
-                let style = style_for(s.cell(i));
+                let style = cell_style(app, i);
                 let mut text = String::new();
-                while i < b && style_for(s.cell(i)) == style {
+                while i < b && cell_style(app, i) == style {
                     text.push(if s.text[i] == '\n' { ' ' } else { s.text[i] });
                     i += 1;
                 }

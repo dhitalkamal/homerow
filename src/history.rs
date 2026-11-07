@@ -137,6 +137,20 @@ pub fn test_of(r: &Round) -> String {
     }
 }
 
+// your best speed for one mode and test, the pace the ghost runs at
+pub fn best_for(p: &Progress, mode: &str, test: &str) -> Option<u32> {
+    p.rounds
+        .iter()
+        .filter(|r| r.mode == mode && test_of(r) == test)
+        .map(|r| r.wpm)
+        .max()
+}
+
+// characters a typist at `wpm` has typed after `elapsed_ms` (a word is 5)
+pub fn ghost_pos(wpm: u32, elapsed_ms: u64) -> usize {
+    (wpm as u64 * 5 * elapsed_ms / 60_000) as usize
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -242,5 +256,36 @@ mod tests {
         let rows = history_rows(&p, View::Code);
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[0].wpm, 25, "newest first");
+    }
+
+    #[test]
+    fn best_is_per_mode_and_test() {
+        let mut p = sample();
+        p.add_round(
+            Round {
+                mode: BASE.into(),
+                wpm: 90,
+                acc: 99,
+                at_ms: 20_000,
+                test: Some("15s".into()),
+            },
+            15_000,
+        );
+        assert_eq!(
+            best_for(&p, BASE, "60s"),
+            Some(34),
+            "old rounds count as 60s"
+        );
+        assert_eq!(best_for(&p, BASE, "15s"), Some(90));
+        assert_eq!(best_for(&p, CODE, ""), Some(25));
+        assert_eq!(best_for(&p, KEYS, ""), None);
+    }
+
+    #[test]
+    fn ghost_moves_at_the_best_pace() {
+        // 60 wpm is 300 characters a minute
+        assert_eq!(ghost_pos(60, 60_000), 300);
+        assert_eq!(ghost_pos(60, 6_000), 30);
+        assert_eq!(ghost_pos(0, 60_000), 0);
     }
 }
