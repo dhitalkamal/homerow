@@ -26,6 +26,37 @@ pub struct Progress {
     pub boxes: BTreeMap<String, u32>,
     // practice ms per utc day, keyed YYYY-MM-DD
     pub days: BTreeMap<String, u64>,
+    // screen density, changed with ctrl+= and ctrl+-
+    pub density: Density,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Density {
+    Compact,
+    #[default]
+    Comfortable,
+    Spacious,
+}
+
+impl Density {
+    // one step bigger (true) or smaller, stopping at the ends
+    pub fn step(self, bigger: bool) -> Density {
+        const ORDER: [Density; 3] = [Density::Compact, Density::Comfortable, Density::Spacious];
+        let i = ORDER.iter().position(|d| *d == self).unwrap_or(1);
+        ORDER[if bigger {
+            (i + 1).min(2)
+        } else {
+            i.saturating_sub(1)
+        }]
+    }
+    pub fn label(self) -> &'static str {
+        match self {
+            Density::Compact => "compact",
+            Density::Comfortable => "comfortable",
+            Density::Spacious => "spacious",
+        }
+    }
 }
 
 impl Default for Progress {
@@ -36,6 +67,7 @@ impl Default for Progress {
             rounds: Vec::new(),
             boxes: BTreeMap::new(),
             days: BTreeMap::new(),
+            density: Density::default(),
         }
     }
 }
@@ -232,6 +264,29 @@ mod tests {
         assert_eq!(warn, None);
         assert_eq!(p.stats[&'a'].n, 5);
         assert!(p.rounds.is_empty());
+        assert_eq!(p.density, Density::Comfortable);
+    }
+
+    #[test]
+    fn density_steps_and_stops_at_the_ends() {
+        use Density::*;
+        assert_eq!(Comfortable.step(true), Spacious);
+        assert_eq!(Spacious.step(true), Spacious);
+        assert_eq!(Comfortable.step(false), Compact);
+        assert_eq!(Compact.step(false), Compact);
+    }
+
+    #[test]
+    fn density_is_saved() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("p.json");
+        let p = Progress {
+            density: Density::Spacious,
+            ..Progress::default()
+        };
+        save(&path, &p).unwrap();
+        assert!(fs::read_to_string(&path).unwrap().contains("\"spacious\""));
+        assert_eq!(load(&path).0.density, Density::Spacious);
     }
 
     #[test]

@@ -3,43 +3,92 @@
 use super::{bigtext, bold, centered, dim, keyboard, prompt};
 use crate::app::{App, Mode};
 use crate::stats::{MIN_SAMPLES, avg_ms, weakness};
+use crate::store::Density;
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
-// below this body height the keyboard is dropped so the text keeps its room
-const KEYBOARD_MIN_HEIGHT: u16 = 26;
-const TEXT_WIDTH: u16 = 70;
+// the keyboard needs this many columns, narrower windows drop it
+const KEYBOARD_MIN_WIDTH: u16 = 62;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Kbd {
+    Full,
+    Compact,
+    Hidden,
+}
+
+// how the typing screen fits a body area of this size at this density
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Plan {
+    pub rows: u16,
+    // a blank line after each text row
+    pub spaced: bool,
+    pub text_width: u16,
+    pub kbd: Kbd,
+}
+
+pub fn plan(width: u16, height: u16, density: Density) -> Plan {
+    let (mut rows, spaced, w) = match density {
+        Density::Compact => (3, false, 60),
+        Density::Comfortable => (3, true, 70),
+        Density::Spacious => (4, true, 84),
+    };
+    let per = if spaced { 2 } else { 1 };
+    // the stats line, plus a blank above it when rows are not spaced
+    let fixed = if spaced { 1 } else { 2 };
+    while rows > 1 && rows * per + fixed > height {
+        rows -= 1;
+    }
+    // text block, stats, and a 2 line gap above the keyboard
+    let needed = rows * per + fixed + 2;
+    let kbd = if density == Density::Compact || width < KEYBOARD_MIN_WIDTH {
+        Kbd::Hidden
+    } else if height >= needed + keyboard::FULL_HEIGHT + 2 {
+        Kbd::Full
+    } else if height >= needed + keyboard::COMPACT_HEIGHT + 2 {
+        Kbd::Compact
+    } else {
+        Kbd::Hidden
+    };
+    Plan {
+        rows,
+        spaced,
+        text_width: w.min(width),
+        kbd,
+    }
+}
 
 pub fn render(f: &mut Frame, area: Rect, app: &App, now: u64) {
     if app.session.is_done() {
         return results(f, area, app);
     }
-    let kbd_h = if area.height >= KEYBOARD_MIN_HEIGHT {
-        keyboard::HEIGHT
-    } else {
-        0
+    let p = plan(area.width, area.height, app.progress.density);
+    let kbd_h = match p.kbd {
+        Kbd::Full => keyboard::FULL_HEIGHT,
+        Kbd::Compact => keyboard::COMPACT_HEIGHT,
+        Kbd::Hidden => 0,
     };
-    let [_, text, stats, _, kbd, _] = Layout::vertical([
+    let text_h = p.rows * if p.spaced { 2 } else { 1 };
+    let [_, text, _, stats, _, kbd, _] = Layout::vertical([
         Constraint::Fill(1),
-        // 3 text rows, each followed by a blank line
-        Constraint::Length(6),
+        Constraint::Length(text_h),
+        Constraint::Length(if p.spaced { 0 } else { 1 }),
         Constraint::Length(1),
         Constraint::Length(if kbd_h > 0 { 2 } else { 0 }),
         Constraint::Length(kbd_h),
         Constraint::Fill(1),
     ])
     .areas(area);
-    let center = |r: Rect| centered(r, TEXT_WIDTH, r.height);
-    prompt::render(f, center(text), app);
+    prompt::render(f, centered(text, p.text_width, text.height), app, p.spaced);
     f.render_widget(
         Paragraph::new(stats_line(app, now)).alignment(Alignment::Center),
         stats,
     );
     if kbd_h > 0 {
-        keyboard::render(f, kbd, app);
+        keyboard::render(f, kbd, app, p.kbd == Kbd::Compact);
     }
 }
 
@@ -142,4 +191,59 @@ fn slowest(app: &App, k: usize) -> String {
         .map(|(c, _)| c.to_ascii_uppercase().to_string())
         .collect::<Vec<_>>()
         .join("  ")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use Density::*;
+
+    #[test]
+    fn comfortable_steps_the_keyboard_down_as_space_shrinks() {
+        assert_eq!(plan(100, 33, Comfortable).kbd, Kbd::Full);
+        assert_eq!(plan(100, 20, Comfortable).kbd, Kbd::Compact);
+        assert_eq!(plan(100, 13, Comfortable).kbd, Kbd::Hidden);
+        let p = plan(100, 33, Comfortable);
+        assert_eq!((p.rows, p.spaced, p.text_width), (3, true, 70));
+    }
+
+    #[test]
+    fn narrow_window_hides_the_keyboard_and_shrinks_the_text() {
+        let p = plan(50, 40, Comfortable);
+        assert_eq!((p.kbd, p.text_width), (Kbd::Hidden, 50));
+    }
+
+    #[test]
+    fn compact_density_is_text_only_and_tight() {
+        let p = plan(100, 40, Compact);
+        assert_eq!(
+            p,
+            Plan {
+                rows: 3,
+                spaced: false,
+                text_width: 60,
+                kbd: Kbd::Hidden
+            }
+        );
+    }
+
+    #[test]
+    fn spacious_density_is_wider_with_more_rows() {
+        let p = plan(120, 40, Spacious);
+        assert_eq!(
+            (p.rows, p.spaced, p.text_width, p.kbd),
+            (4, true, 84, Kbd::Full)
+        );
+        assert_eq!(plan(70, 40, Spacious).text_width, 70);
+    }
+
+    #[test]
+    fn tiny_area_still_fits_at_least_one_row() {
+        for d in [Compact, Comfortable, Spacious] {
+            let p = plan(20, 4, d);
+            let lines = p.rows * if p.spaced { 2 } else { 1 } + 1;
+            assert!(p.rows >= 1 && lines <= 4, "{d:?} {p:?}");
+            assert_eq!(p.kbd, Kbd::Hidden);
+        }
+    }
 }

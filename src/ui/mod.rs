@@ -40,7 +40,7 @@ pub fn draw(f: &mut Frame, app: &App, now: u64) {
         Mode::Progress => dashboard::render(f, body, app, now),
         _ => focus::render(f, body, app, now),
     }
-    draw_footer(f, footer, app);
+    draw_footer(f, footer, app, now);
 }
 
 // a centered box of at most w x h inside area
@@ -76,7 +76,7 @@ fn draw_header(f: &mut Frame, area: Rect, app: &App) {
     );
 }
 
-fn draw_footer(f: &mut Frame, area: Rect, app: &App) {
+fn draw_footer(f: &mut Frame, area: Rect, app: &App, now: u64) {
     // (key, what it does): key in normal weight, action dimmed
     let hints: &[(&str, &str)] = match app.mode {
         Mode::Cards => &[
@@ -85,7 +85,7 @@ fn draw_footer(f: &mut Frame, area: Rect, app: &App) {
             ("space", "reveal"),
             ("[ ]", "deck"),
         ],
-        Mode::Progress => &[("tab", "mode"), ("esc", "quit")],
+        Mode::Progress => &[("tab", "mode"), ("esc", "quit"), ("ctrl+-/=", "size")],
         _ if app.session.is_done() => &[("return", "next round"), ("tab", "mode"), ("esc", "quit")],
         _ => &[
             ("tab", "mode"),
@@ -93,16 +93,19 @@ fn draw_footer(f: &mut Frame, area: Rect, app: &App) {
             ("ctrl+f", "fingers"),
             ("ctrl+k", "heatmap"),
             ("ctrl+l", "labels"),
+            ("ctrl+-/=", "size"),
         ],
     };
-    let line = match &app.notice {
-        Some(n) => Line::styled(n.as_str(), Style::new().fg(BAD)),
-        None => Line::from(
+    // an error beats a size toast, a toast beats the key hints
+    let line = match (&app.notice, app.toast(now)) {
+        (Some(n), _) => Line::styled(n.as_str(), Style::new().fg(BAD)),
+        (None, Some(t)) => Line::styled(t.to_string(), bold().fg(ACCENT)),
+        (None, None) => Line::from(
             hints
                 .iter()
                 .enumerate()
                 .flat_map(|(i, (k, what))| {
-                    let gap = if i == 0 { "" } else { "     " };
+                    let gap = if i == 0 { "" } else { "    " };
                     [Span::raw(format!("{gap}{k} ")), Span::styled(*what, dim())]
                 })
                 .collect::<Vec<_>>(),

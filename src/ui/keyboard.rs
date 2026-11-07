@@ -10,8 +10,10 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
-// 5 key rows with a blank line between, a blank line, then the hint
-pub const HEIGHT: u16 = 11;
+// full: 5 key rows with a blank line between, a blank line, then the hint.
+// compact: the same without the blank lines between rows.
+pub const FULL_HEIGHT: u16 = 11;
+pub const COMPACT_HEIGHT: u16 = 7;
 // every row, counting the one column gap after each key
 #[cfg(test)]
 const ROW_WIDTH: usize = 60;
@@ -109,7 +111,7 @@ fn base_key(c: char) -> (char, bool) {
     }
 }
 
-pub fn render(f: &mut Frame, area: Rect, app: &App) {
+pub fn render(f: &mut Frame, area: Rect, app: &App, compact: bool) {
     let next = if app.session.is_done() {
         None
     } else {
@@ -127,7 +129,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
     let avg = avg_ms(&app.progress.stats);
     let mut lines = Vec::new();
     for (i, row) in keys.iter().enumerate() {
-        if i > 0 {
+        if i > 0 && !compact {
             lines.push(Line::raw(""));
         }
         let mut spans = Vec::new();

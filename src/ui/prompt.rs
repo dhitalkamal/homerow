@@ -36,7 +36,8 @@ pub fn lines(text: &[char], width: usize) -> Vec<(usize, usize)> {
     out
 }
 
-pub fn render(f: &mut Frame, area: Rect, app: &App) {
+// spaced puts a blank line after each text row
+pub fn render(f: &mut Frame, area: Rect, app: &App, spaced: bool) {
     let s = &app.session;
     let ranges = lines(&s.text, area.width.max(10) as usize);
     let cur = ranges
@@ -45,8 +46,11 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
         .unwrap_or(0);
     let first = cur.saturating_sub(1);
     let return_glyph = char::from_u32(0x23CE).unwrap_or('|').to_string();
-    // a blank row between text rows, so each row takes two lines
-    let rows = (area.height as usize).div_ceil(2);
+    let rows = if spaced {
+        (area.height as usize).div_ceil(2)
+    } else {
+        area.height as usize
+    };
     let out: Vec<Line> = ranges
         .iter()
         .skip(first)
@@ -75,7 +79,11 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
                     })
                     .collect::<Vec<_>>(),
             );
-            [text, Line::raw("")]
+            if spaced {
+                vec![text, Line::raw("")]
+            } else {
+                vec![text]
+            }
         })
         .collect();
     f.render_widget(Paragraph::new(out), area);

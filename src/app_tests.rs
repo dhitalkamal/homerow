@@ -175,3 +175,40 @@ fn esc_quits() {
     a.handle(Input::Esc, 0);
     assert!(a.quit);
 }
+
+#[test]
+fn ctrl_equals_and_minus_change_density_and_save_it() {
+    let (mut a, dir) = app();
+    a.handle(combo("ctrl+="), 1000);
+    assert_eq!(a.progress.density, store::Density::Spacious);
+    let (saved, _) = store::load(&dir.path().join("p.json"));
+    assert_eq!(saved.density, store::Density::Spacious);
+    a.handle(combo("ctrl+-"), 1000);
+    a.handle(combo("ctrl+-"), 1000);
+    a.handle(combo("ctrl+-"), 1000);
+    assert_eq!(a.progress.density, store::Density::Compact);
+    assert_eq!(a.session.pos(), 0, "size keys never count as typing");
+}
+
+#[test]
+fn density_change_shows_a_short_toast() {
+    let (mut a, _d) = app();
+    a.handle(combo("ctrl+="), 1000);
+    assert_eq!(a.toast(1000), Some("size: spacious"));
+    assert_eq!(a.toast(1000 + TOAST_MS - 1), Some("size: spacious"));
+    assert_eq!(a.toast(1000 + TOAST_MS), None);
+}
+
+#[test]
+fn density_keys_work_on_every_tab_without_grading_cards() {
+    let (mut a, _d) = app();
+    a.mode = Mode::Cards;
+    set_card(&mut a, "ctrl+R");
+    a.handle(combo("ctrl+-"), 0);
+    assert_eq!(a.card_state, CardState::Ask);
+    assert!(a.progress.boxes.is_empty());
+    assert_eq!(a.progress.density, store::Density::Compact);
+    a.mode = Mode::Progress;
+    a.handle(combo("ctrl+="), 0);
+    assert_eq!(a.progress.density, store::Density::Comfortable);
+}

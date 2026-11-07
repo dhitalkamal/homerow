@@ -28,12 +28,30 @@ Tab cycles through them, Esc quits.
 
 While typing the screen only shows the text, one stats line and the keyboard.
 Results appear in big digits after each round. A wrong key turns red and the
-cursor waits until you press the right one. The keyboard hides itself when the
-terminal is too short, so the text always has room.
+cursor waits until you press the right one.
 
-Colors come from your terminal's ANSI palette, so they follow your theme. Each
-key has a colored edge for the finger that presses it; the next key fills with
-that color.
+Text and keycaps use your terminal's own colors, so they follow your theme.
+Each letter on the keyboard is tinted by the finger that presses it (8 fixed
+colors, so no theme can merge two fingers), the next key fills with that color,
+and the line under the keyboard names the finger.
+
+## size and zoom
+
+Zoom is your terminal's job: in kitty, cmd+= and cmd+- change the font size.
+homerow redraws to fit whatever size it gets:
+
+- plenty of room: full keyboard
+- medium: compact keyboard (no blank lines between key rows)
+- small or narrow: text and stats only
+
+On top of that, ctrl+= and ctrl+- change the density, saved between runs:
+
+- compact: text only, no line spacing
+- comfortable: the default layout
+- spacious: wider text column and an extra row of text
+
+ctrl+= needs a terminal that reports ctrl with symbol keys (kitty, WezTerm,
+Ghostty with the kitty keyboard protocol). ctrl and the + key works too.
 
 Typing keys: ctrl+F finger colors, ctrl+K weak key heatmap, ctrl+L hide key
 labels (forces you to stop looking).

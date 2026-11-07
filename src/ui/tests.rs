@@ -163,3 +163,18 @@ fn tiny_terminal_does_not_panic_in_any_mode() {
         a.handle(Input::Tab, NOW);
     }
 }
+
+#[test]
+fn size_change_shows_in_the_footer() {
+    let (mut a, _d) = app();
+    a.handle(Input::Combo(crate::cards::parse("ctrl+=").unwrap()), NOW);
+    let s = screen(&a, 100, 40);
+    assert!(s.contains("size: spacious"), "{s}");
+}
+
+#[test]
+fn medium_height_gets_the_compact_keyboard() {
+    let (a, _d) = app();
+    let s = screen(&a, 100, 27);
+    assert!(s.contains("shift") && s.contains("next"), "{s}");
+}

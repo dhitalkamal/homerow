@@ -9,6 +9,8 @@ use std::path::PathBuf;
 
 const BASELINE_MS: u64 = 60_000;
 const DONE_PAUSE_MS: u64 = 650;
+// how long a size change message stays in the footer
+pub const TOAST_MS: u64 = 1500;
 
 // keys after the terminal layer has folded them (see input.rs)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -85,6 +87,8 @@ pub struct App {
     pub quit: bool,
     // the current round is already saved, so a late tick can't save it twice
     recorded: bool,
+    // short footer message and when it disappears
+    toast_msg: Option<(String, u64)>,
     rng: Rng,
 }
 
@@ -106,6 +110,7 @@ impl App {
             notice,
             quit: false,
             recorded: false,
+            toast_msg: None,
             rng: Rng::new(seed),
         };
         app.restart();
@@ -115,6 +120,15 @@ impl App {
     pub fn handle(&mut self, input: Input, now: u64) {
         match input {
             Input::Esc => self.quit = true,
+            Input::Combo(c) if size_step(c).is_some() => {
+                let bigger = size_step(c) == Some(true);
+                self.progress.density = self.progress.density.step(bigger);
+                self.toast_msg = Some((
+                    format!("size: {}", self.progress.density.label()),
+                    now + TOAST_MS,
+                ));
+                self.save();
+            }
             Input::Tab => self.switch(1),
             Input::BackTab => self.switch(Mode::ALL.len() - 1),
             _ if self.mode == Mode::Progress => {}
@@ -274,8 +288,25 @@ impl App {
         }
     }
 
+    pub fn toast(&self, now: u64) -> Option<&str> {
+        self.toast_msg
+            .as_ref()
+            .filter(|(_, until)| now < *until)
+            .map(|(m, _)| m.as_str())
+    }
+
     pub fn last_round(&self) -> Option<&Round> {
         self.progress.rounds.last()
+    }
+}
+
+// ctrl+= (or ctrl and the + key) is bigger, ctrl+- is smaller
+fn size_step(c: Combo) -> Option<bool> {
+    let ctrl = c.mods.ctrl && !c.mods.cmd && !c.mods.opt;
+    match c.key {
+        Key::Char('=') if ctrl => Some(true),
+        Key::Char('-') if ctrl && !c.mods.shift => Some(false),
+        _ => None,
     }
 }
 
