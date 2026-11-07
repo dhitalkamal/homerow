@@ -342,7 +342,11 @@ fn left_and_right_switch_the_progress_view() {
     assert_eq!(a.progress_view, View::Base);
     a.handle(key(cards::Key::Left), 0);
     a.handle(key(cards::Key::Left), 0);
-    assert_eq!(a.progress_view, View::Code, "wraps around");
+    assert_eq!(
+        a.progress_view,
+        View::Mistakes,
+        "wraps around to the last view"
+    );
 }
 
 #[test]
@@ -353,4 +357,64 @@ fn typing_records_key_stats_under_the_current_mode() {
     a.handle(Input::Text(first), 0);
     assert!(a.progress.mode_stats.contains_key("code"));
     assert!(!a.progress.mode_stats.contains_key("base"));
+}
+
+#[test]
+fn finishing_a_round_records_missed_words_and_counts_down_clean_ones() {
+    let (mut a, _d) = app();
+    go(&mut a, Mode::Keys);
+    a.progress.note_mistake("cat");
+    a.progress.note_mistake("cat");
+    a.session = crate::session::Session::new("the cat", None);
+    a.handle(Input::Text('t'), 0);
+    a.handle(Input::Text('x'), 10);
+    for (i, c) in "he cat".chars().enumerate() {
+        a.handle(Input::Text(c), 100 + i as u64 * 100);
+    }
+    assert!(a.session.is_done());
+    assert_eq!(a.progress.mistakes.get("the"), Some(&1));
+    assert_eq!(
+        a.progress.mistakes.get("cat"),
+        Some(&1),
+        "typed cleanly once"
+    );
+}
+
+#[test]
+fn mistakes_tab_drills_the_missed_words() {
+    let (mut a, _d) = app();
+    for _ in 0..3 {
+        a.progress.note_mistake("their");
+    }
+    go(&mut a, Mode::Mistakes);
+    let text: String = a.session.text.iter().collect();
+    assert!(text.split(' ').all(|w| w == "their"), "{text}");
+    assert!(!text.is_empty());
+}
+
+#[test]
+fn return_toggles_round_history_and_arrows_scroll_it() {
+    let (mut a, _d) = app();
+    for wpm in [30, 31, 32, 33, 34] {
+        a.progress.add_round(
+            store::Round {
+                mode: "base".into(),
+                wpm,
+                acc: 95,
+                at_ms: 0,
+            },
+            60_000,
+        );
+    }
+    go(&mut a, Mode::Progress);
+    assert!(!a.show_history);
+    a.handle(Input::Text('\n'), 0);
+    assert!(a.show_history);
+    a.handle(key(cards::Key::Down), 0);
+    a.handle(key(cards::Key::Down), 0);
+    assert_eq!(a.history_scroll, 2);
+    for _ in 0..5 {
+        a.handle(key(cards::Key::Up), 0);
+    }
+    assert_eq!(a.history_scroll, 0);
 }

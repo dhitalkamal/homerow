@@ -7,6 +7,7 @@ use crate::store::{Progress, Round};
 pub const BASE: &str = "base";
 pub const KEYS: &str = "keys";
 pub const CODE: &str = "code";
+pub const MISTAKES: &str = "mistakes";
 
 // what the progress tab is showing
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -15,25 +16,34 @@ pub enum View {
     Base,
     Keys,
     Code,
+    Mistakes,
 }
 
 impl View {
-    pub const ALL: [View; 4] = [View::All, View::Base, View::Keys, View::Code];
+    pub const ALL: [View; 5] = [
+        View::All,
+        View::Base,
+        View::Keys,
+        View::Code,
+        View::Mistakes,
+    ];
     pub fn label(self) -> &'static str {
         match self {
             View::All => "all modes",
             View::Base => "baseline",
             View::Keys => "weak keys",
             View::Code => "code",
+            View::Mistakes => "mistakes",
         }
     }
     // round tags this view covers
     pub fn modes(self) -> &'static [&'static str] {
         match self {
-            View::All => &[BASE, KEYS, CODE],
+            View::All => &[BASE, KEYS, CODE, MISTAKES],
             View::Base => &[BASE],
             View::Keys => &[KEYS],
             View::Code => &[CODE],
+            View::Mistakes => &[MISTAKES],
         }
     }
 }
@@ -96,6 +106,24 @@ pub fn view_stats(p: &Progress, view: View) -> KeyStats {
     match view {
         View::All => merged(p, &[BASE, KEYS]),
         v => merged(p, v.modes()),
+    }
+}
+
+// every round in the view, newest first
+pub fn history_rows(p: &Progress, view: View) -> Vec<&Round> {
+    let mut rs = rounds(p, view);
+    rs.reverse();
+    rs
+}
+
+// how long ago, in the largest unit that fits
+pub fn ago(now: u64, then: u64) -> String {
+    let secs = now.saturating_sub(then) / 1000;
+    match secs {
+        0..60 => "just now".to_string(),
+        60..3600 => format!("{}m ago", secs / 60),
+        3600..86_400 => format!("{}h ago", secs / 3600),
+        _ => format!("{}d ago", secs / 86_400),
     }
 }
 
@@ -186,5 +214,22 @@ mod tests {
             "code symbols stay out of text stats"
         );
         assert_eq!(view_stats(&p, View::Code)[&'{'].e, 2);
+    }
+
+    #[test]
+    fn ago_reads_like_a_person_would_say_it() {
+        let now = 10 * 86_400_000;
+        assert_eq!(ago(now, now - 20_000), "just now");
+        assert_eq!(ago(now, now - 5 * 60_000), "5m ago");
+        assert_eq!(ago(now, now - 3 * 3_600_000), "3h ago");
+        assert_eq!(ago(now, now - 2 * 86_400_000), "2d ago");
+    }
+
+    #[test]
+    fn history_lists_newest_first_for_the_view() {
+        let p = sample();
+        let rows = history_rows(&p, View::Code);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].wpm, 25, "newest first");
     }
 }

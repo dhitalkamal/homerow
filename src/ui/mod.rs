@@ -5,6 +5,7 @@ pub mod card;
 pub mod dashboard;
 pub mod focus;
 pub mod hands;
+pub mod history;
 pub mod keyboard;
 pub mod layout;
 pub mod prompt;
@@ -93,7 +94,12 @@ fn draw_footer(f: &mut Frame, area: Rect, app: &App, now: u64) {
             ("space", "reveal"),
             ("[ ]", "deck"),
         ],
-        Mode::Progress => &[("left/right", "view"), ("tab", "mode"), ("esc", "quit")],
+        Mode::Progress => &[
+            ("left/right", "view"),
+            ("return", "history"),
+            ("tab", "mode"),
+            ("esc", "quit"),
+        ],
         Mode::Settings => &[
             ("up/down", "move"),
             ("space", "change"),
@@ -124,3 +130,5 @@ fn draw_footer(f: &mut Frame, area: Rect, app: &App, now: u64) {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_history;

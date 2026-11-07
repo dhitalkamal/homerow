@@ -23,6 +23,14 @@ pub fn render(
     if app.session.is_done() {
         return results(f, area, app);
     }
+    if app.session.text.is_empty() {
+        let msg = vec![
+            Line::styled("No mistakes to practice yet.", bold()),
+            Line::styled("Words you miss in the other modes show up here.", dim()),
+        ];
+        let at = centered(area, area.width, 2);
+        return f.render_widget(Paragraph::new(msg).alignment(Alignment::Center), at);
+    }
     let opts = app.progress.settings;
     let p = plan(
         area.width,

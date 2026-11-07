@@ -1,5 +1,5 @@
 // app state and what each key press does to it. no drawing here, see ui/.
-use crate::cards::{self, Combo, Deck, Key, Mods};
+use crate::cards::{self, Combo, Deck, Key};
 use crate::content::{self, CARDS};
 use crate::history;
 use crate::rng::Rng;
@@ -28,16 +28,18 @@ pub enum Mode {
     Base,
     Keys,
     Code,
+    Mistakes,
     Cards,
     Progress,
     Settings,
 }
 
 impl Mode {
-    pub const ALL: [Mode; 6] = [
+    pub const ALL: [Mode; 7] = [
         Mode::Base,
         Mode::Keys,
         Mode::Code,
+        Mode::Mistakes,
         Mode::Cards,
         Mode::Progress,
         Mode::Settings,
@@ -47,6 +49,7 @@ impl Mode {
             Mode::Base => "baseline",
             Mode::Keys => "weak keys",
             Mode::Code => "code",
+            Mode::Mistakes => "mistakes",
             Mode::Cards => "shortcuts",
             Mode::Progress => "progress",
             Mode::Settings => "settings",
@@ -57,6 +60,7 @@ impl Mode {
             Mode::Base => history::BASE,
             Mode::Keys => history::KEYS,
             Mode::Code => history::CODE,
+            Mode::Mistakes => history::MISTAKES,
             Mode::Cards => "cards",
             Mode::Progress => "progress",
             Mode::Settings => "settings",
@@ -64,7 +68,7 @@ impl Mode {
     }
     // modes where you type text and a session runs
     pub fn is_typing(self) -> bool {
-        matches!(self, Mode::Base | Mode::Keys | Mode::Code)
+        matches!(self, Mode::Base | Mode::Keys | Mode::Code | Mode::Mistakes)
     }
 }
 
@@ -90,6 +94,9 @@ pub struct App {
     pub settings_row: usize,
     // which mode the progress tab shows
     pub progress_view: history::View,
+    // progress tab shows the round list instead of the overview
+    pub show_history: bool,
+    pub history_scroll: usize,
     // last known terminal size, so auto size can be stepped from
     pub screen: (u16, u16),
     // the terminal understands kitty text sizing (checked at startup)
@@ -117,6 +124,8 @@ impl App {
             notice,
             settings_row: 0,
             progress_view: history::View::All,
+            show_history: false,
+            history_scroll: 0,
             screen: (100, 40),
             zoom_ok: false,
             quit: false,
@@ -208,6 +217,12 @@ impl App {
             at_ms: now,
         };
         self.progress.add_round(round, self.session.elapsed(now));
+        for w in self.session.missed_words() {
+            self.progress.note_mistake(&w);
+        }
+        for w in self.session.clean_words() {
+            self.progress.note_clean(&w);
+        }
         self.save();
     }
 
@@ -229,6 +244,10 @@ impl App {
                     Session::new(&content::weak_text(&mut self.rng, &self.focus, 24), None);
             }
             Mode::Code => self.session = Session::new(content::code_text(&mut self.rng), None),
+            Mode::Mistakes => {
+                let text = content::mistakes_text(&mut self.rng, &self.progress.mistakes, 24);
+                self.session = Session::new(&text, None);
+            }
             Mode::Cards => self.next_card(),
             Mode::Progress | Mode::Settings => {}
         }
@@ -247,24 +266,6 @@ impl App {
                 self.path.display()
             ));
         }
-    }
-
-    // left/right (or h/l) step through the progress views, wrapping round
-    fn progress_input(&mut self, input: Input) {
-        let step = match input {
-            Input::Text('l') => 1,
-            Input::Text('h') => -1,
-            Input::Combo(c) if c.mods == Mods::default() && c.key == Key::Right => 1,
-            Input::Combo(c) if c.mods == Mods::default() && c.key == Key::Left => -1,
-            _ => return,
-        };
-        let views = history::View::ALL;
-        let i = views
-            .iter()
-            .position(|v| *v == self.progress_view)
-            .unwrap_or(0) as i32;
-        let n = views.len() as i32;
-        self.progress_view = views[((i + step + n) % n) as usize];
     }
 
     pub fn toast(&self, now: u64) -> Option<&str> {
@@ -311,6 +312,7 @@ fn size_step(c: Combo) -> Option<bool> {
 
 // shortcut card keys and settings keys live in their own files
 mod card_keys;
+mod progress_keys;
 mod settings_keys;
 
 #[cfg(test)]

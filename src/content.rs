@@ -1,6 +1,7 @@
 // practice material and the builders that turn it into drill text
 use crate::cards::{Card, Deck};
 use crate::rng::Rng;
+use std::collections::BTreeMap;
 
 pub const WORDS: &str = "the of and to in is you that it he was for on are as with his they at be this have from or one had by word but not what all were we when your can said there use an each which she do how their if will up other about out many then them these so some her would make like him into time has look two more write go see number no way could people my than first water been call who now find long down day did get come made may part over new sound take only little work know place year live back give most very after thing our just name good man think say great where help through much before line right too mean old any same tell follow came want show also around form three small set put end does another well large must big even such because turn here why ask went men read need land different home move try kind hand picture again change off play spell air away animal house point page letter mother answer found study still learn should world high every near add food between own below country plant last school father keep tree never start city earth eye light thought head under story saw left few while along might close something seem next hard open example begin life always those both paper together got group often run important until children side feet car mile night walk white sea began grow took river four carry state once book hear stop without second later miss idea enough eat face watch far real almost let above girl sometimes mountain cut young talk soon list song being leave family quick jump zone vex quiz box jazz fix query value buffer object";
 
@@ -125,6 +126,22 @@ pub fn weak_text(rng: &mut Rng, focus: &[char], n: usize) -> String {
     for w in words() {
         let hits = w.chars().filter(|ch| focus.contains(ch)).count();
         pool.extend(std::iter::repeat_n(w, 1 + hits * 4));
+    }
+    (0..n)
+        .map(|_| *rng.pick(&pool))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+// words you missed, weighted by how often (capped so one word cannot fill
+// the whole round); empty when there is nothing to practice yet
+pub fn mistakes_text(rng: &mut Rng, mistakes: &BTreeMap<String, u32>, n: usize) -> String {
+    let mut pool: Vec<&str> = Vec::new();
+    for (w, count) in mistakes {
+        pool.extend(std::iter::repeat_n(w.as_str(), (*count).min(5) as usize));
+    }
+    if pool.is_empty() {
+        return String::new();
     }
     (0..n)
         .map(|_| *rng.pick(&pool))
