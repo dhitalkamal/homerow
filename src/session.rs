@@ -113,9 +113,6 @@ impl Session {
     pub fn is_done(&self) -> bool {
         self.end.is_some()
     }
-    pub fn started(&self) -> bool {
-        self.start.is_some()
-    }
     pub fn pos(&self) -> usize {
         self.pos
     }

@@ -36,7 +36,29 @@ fn tab_cycles_modes_and_backtab_goes_back() {
     assert_eq!(a.mode, Mode::Keys);
     a.handle(Input::BackTab, 0);
     a.handle(Input::BackTab, 0);
+    assert_eq!(a.mode, Mode::Progress);
+    a.handle(Input::BackTab, 0);
     assert_eq!(a.mode, Mode::Cards);
+}
+
+#[test]
+fn progress_tab_ignores_typing_and_card_keys() {
+    let (mut a, _d) = app();
+    a.handle(Input::BackTab, 0);
+    assert_eq!(a.mode, Mode::Progress);
+    let boxes = a.progress.boxes.clone();
+    for i in [
+        Input::Text('a'),
+        Input::Text(' '),
+        Input::Text('\n'),
+        combo("ctrl+R"),
+    ] {
+        a.handle(i, 0);
+    }
+    a.tick(999_999);
+    assert!(a.progress.rounds.is_empty());
+    assert_eq!(a.progress.boxes, boxes);
+    assert!(a.progress.stats.is_empty());
 }
 
 #[test]

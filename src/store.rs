@@ -110,10 +110,59 @@ pub fn day_key(ms: u64) -> String {
     format!("{y:04}-{m:02}-{d:02}")
 }
 
+// days in a row with practice, ending today. a streak that ended yesterday
+// still counts until today is over.
+pub fn streak(days: &BTreeMap<String, u64>, now_ms: u64) -> u32 {
+    const DAY: u64 = 86_400_000;
+    let did = |ms: u64| days.get(&day_key(ms)).is_some_and(|t| *t > 0);
+    // start from yesterday when today has nothing yet
+    let mut at = if did(now_ms) {
+        now_ms
+    } else {
+        now_ms.saturating_sub(DAY)
+    };
+    let mut n = 0;
+    while at >= DAY && did(at) {
+        n += 1;
+        at -= DAY;
+    }
+    n
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::stats::KeyStat;
+
+    const DAY: u64 = 86_400_000;
+    const NOW: u64 = 1_794_009_600_000 + 3_600_000; // 2026-11-07 01:00 utc
+
+    fn practiced(days_ago: &[u64]) -> BTreeMap<String, u64> {
+        days_ago
+            .iter()
+            .map(|d| (day_key(NOW - d * DAY), 60_000))
+            .collect()
+    }
+
+    #[test]
+    fn streak_counts_consecutive_days_ending_today() {
+        assert_eq!(streak(&BTreeMap::new(), NOW), 0);
+        assert_eq!(streak(&practiced(&[0, 1, 2]), NOW), 3);
+        assert_eq!(streak(&practiced(&[0, 2, 3]), NOW), 1);
+    }
+
+    #[test]
+    fn streak_survives_until_today_ends() {
+        assert_eq!(streak(&practiced(&[1, 2]), NOW), 2);
+        assert_eq!(streak(&practiced(&[3]), NOW), 0);
+    }
+
+    #[test]
+    fn days_with_no_time_do_not_count() {
+        let mut d = practiced(&[1]);
+        d.insert(day_key(NOW), 0);
+        assert_eq!(streak(&d, NOW), 1);
+    }
 
     fn round(wpm: u32) -> Round {
         Round {

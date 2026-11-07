@@ -1,12 +1,13 @@
-// the shortcut card in front of you, plus how far along each deck is
+// the shortcut card, centered: what to do, the keys as keycaps, and how it went
+use super::{bold, dim};
 use crate::app::{App, CardState};
-use crate::cards::{Combo, Deck, Key, known};
+use crate::cards::{Combo, Key, known};
 use crate::content::CARDS;
 use ratatui::Frame;
-use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::layout::{Alignment, Constraint, Layout, Rect};
+use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+use ratatui::widgets::{Paragraph, Wrap};
 
 fn glyph(cp: u32, name: &str) -> String {
     let g = char::from_u32(cp).map(String::from).unwrap_or_default();
@@ -69,102 +70,100 @@ pub fn pressed_labels(c: &Combo) -> Vec<String> {
     out
 }
 
-fn caps(labels: Vec<String>, color: Color) -> Line<'static> {
-    let mut spans = Vec::new();
+// keycaps for each label with a colored edge underneath
+fn caps(labels: &[String], edge: Color) -> [Line<'static>; 2] {
+    let (mut top, mut bottom) = (Vec::new(), Vec::new());
     for l in labels {
-        spans.push(Span::styled(
+        let w = l.chars().count() + 2;
+        top.push(Span::styled(
             format!(" {l} "),
-            Style::new()
-                .fg(Color::Black)
-                .bg(color)
-                .add_modifier(Modifier::BOLD),
+            Style::new().bg(super::KEYCAP),
         ));
-        spans.push(Span::raw("  "));
+        top.push(Span::raw("  "));
+        bottom.push(Span::styled("\u{2594}".repeat(w), Style::new().fg(edge)));
+        bottom.push(Span::raw("  "));
     }
-    Line::from(spans)
+    [Line::from(top), Line::from(bottom)]
 }
 
 pub fn render(f: &mut Frame, area: Rect, app: &App) {
-    let [card_area, deck_area] =
-        Layout::vertical([Constraint::Min(7), Constraint::Length(8)]).areas(area);
+    let [_, deck, _, action, _, keys, _, status, _, footer] = Layout::vertical([
+        Constraint::Fill(1),
+        Constraint::Length(1),
+        Constraint::Length(1),
+        Constraint::Length(3),
+        Constraint::Length(1),
+        Constraint::Length(2),
+        Constraint::Length(1),
+        Constraint::Length(1),
+        Constraint::Fill(1),
+        Constraint::Length(1),
+    ])
+    .areas(area);
     let card = CARDS[app.card];
     let answer = combo_labels(card.combo);
-    let dim = Style::new().fg(super::DIM);
-    let mut lines = vec![
-        Line::styled(
-            format!(
-                "{}{}",
-                card.deck.label(),
-                if card.recall { "  /  recall card" } else { "" }
-            ),
-            dim,
-        ),
-        Line::raw(""),
-        Line::styled(card.action, Style::new().add_modifier(Modifier::BOLD)),
-        Line::raw(""),
-    ];
-    match &app.card_state {
-        CardState::Ask if card.recall => lines.push(Line::styled(
-            "Think of the keys, then press Space to check.",
-            dim,
-        )),
-        CardState::Ask => lines.push(Line::styled(
-            "Press the shortcut. Space shows the answer.",
-            dim,
-        )),
-        CardState::Judge => {
-            lines.push(caps(answer, Color::White));
-            lines.push(Line::raw(""));
-            lines.push(Line::styled("Did you know it?  y = yes   n = no", dim));
-        }
-        CardState::Retry(pressed) => {
-            if let Some(p) = pressed {
-                lines.push(Line::from(vec![Span::styled("you pressed  ", dim)]));
-                lines.push(caps(pressed_labels(p), super::BAD));
-            }
-            lines.push(Line::styled("answer", dim));
-            lines.push(caps(answer, Color::White));
-            lines.push(Line::styled("Now press it for real to lock it in.", dim));
-        }
-        CardState::Done(_) => {
-            lines.push(caps(answer, super::GOOD));
-            lines.push(Line::styled("Correct", Style::new().fg(super::GOOD)));
-        }
-    }
-    let block = Block::new().borders(Borders::ALL).border_style(dim);
-    f.render_widget(
-        Paragraph::new(lines)
-            .wrap(Wrap { trim: false })
-            .block(block),
-        card_area,
-    );
-
-    let decks: Vec<Line> = Deck::ALL
-        .iter()
-        .map(|&d| {
-            let (k, n) = known(CARDS, &app.progress.boxes, d);
-            let filled = (k * 20).checked_div(n).unwrap_or(0);
-            let marker = if app.deck == Some(d) { "> " } else { "  " };
-            Line::from(vec![
-                Span::raw(format!("{marker}{:<16}", d.label())),
-                Span::styled("#".repeat(filled), Style::new().fg(super::GOOD)),
-                Span::styled("-".repeat(20 - filled), dim),
-                Span::styled(format!("  {k}/{n} learned"), dim),
-            ])
-        })
-        .collect();
-    let title = if app.deck.is_none() {
-        " Decks (all) "
-    } else {
-        " Decks "
+    let center = |l: Vec<Line<'static>>| {
+        Paragraph::new(l)
+            .alignment(Alignment::Center)
+            .wrap(Wrap { trim: true })
     };
+    let recall = if card.recall { "   recall card" } else { "" };
     f.render_widget(
-        Paragraph::new(decks).block(
-            Block::new()
-                .title(title)
-                .borders(Borders::TOP)
-                .border_style(dim),
+        center(vec![Line::styled(
+            format!("{}{recall}", card.deck.label()),
+            dim(),
+        )]),
+        deck,
+    );
+    f.render_widget(center(vec![Line::styled(card.action, bold())]), action);
+
+    let neutral = Color::Gray;
+    let (key_lines, status_line): (Vec<Line>, Line) = match &app.card_state {
+        CardState::Ask if card.recall => (
+            vec![Line::styled("think of the keys, then press space", dim())],
+            Line::raw(""),
         ),
-        deck_area,
+        CardState::Ask => (
+            vec![Line::styled("press the shortcut", dim())],
+            Line::styled("space shows the answer", dim()),
+        ),
+        CardState::Judge => (
+            caps(&answer, neutral).to_vec(),
+            Line::styled("did you know it?    y yes    n no", dim()),
+        ),
+        CardState::Retry(Some(p)) => (
+            caps(&answer, neutral).to_vec(),
+            Line::from(vec![
+                Span::styled("you pressed  ", dim()),
+                Span::styled(pressed_labels(p).join(" "), Style::new().fg(super::BAD)),
+                Span::styled("    now press it for real", dim()),
+            ]),
+        ),
+        CardState::Retry(None) => (
+            caps(&answer, neutral).to_vec(),
+            Line::styled("now press it for real to lock it in", dim()),
+        ),
+        CardState::Done(_) => (
+            caps(&answer, super::GOOD).to_vec(),
+            Line::styled("correct", Style::new().fg(super::GOOD)),
+        ),
+    };
+    f.render_widget(center(key_lines), keys);
+    f.render_widget(center(vec![status_line]), status);
+
+    let (k, n) = match app.deck {
+        Some(d) => known(CARDS, &app.progress.boxes, d),
+        None => crate::cards::Deck::ALL.iter().fold((0, 0), |(a, b), d| {
+            let (x, y) = known(CARDS, &app.progress.boxes, *d);
+            (a + x, b + y)
+        }),
+    };
+    let name = app.deck.map_or("all decks", |d| d.label());
+    f.render_widget(
+        center(vec![Line::styled(
+            format!("{name}   {k}/{n} learned"),
+            dim(),
+        )]),
+        footer,
     );
 }

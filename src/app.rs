@@ -26,16 +26,24 @@ pub enum Mode {
     Keys,
     Code,
     Cards,
+    Progress,
 }
 
 impl Mode {
-    pub const ALL: [Mode; 4] = [Mode::Base, Mode::Keys, Mode::Code, Mode::Cards];
+    pub const ALL: [Mode; 5] = [
+        Mode::Base,
+        Mode::Keys,
+        Mode::Code,
+        Mode::Cards,
+        Mode::Progress,
+    ];
     pub fn label(self) -> &'static str {
         match self {
-            Mode::Base => "Baseline 60s",
-            Mode::Keys => "Weak keys",
-            Mode::Code => "Code",
-            Mode::Cards => "Shortcuts",
+            Mode::Base => "baseline",
+            Mode::Keys => "weak keys",
+            Mode::Code => "code",
+            Mode::Cards => "shortcuts",
+            Mode::Progress => "progress",
         }
     }
     fn tag(self) -> &'static str {
@@ -44,7 +52,12 @@ impl Mode {
             Mode::Keys => "keys",
             Mode::Code => "code",
             Mode::Cards => "cards",
+            Mode::Progress => "progress",
         }
+    }
+    // modes where you type text and a session runs
+    pub fn is_typing(self) -> bool {
+        matches!(self, Mode::Base | Mode::Keys | Mode::Code)
     }
 }
 
@@ -104,6 +117,7 @@ impl App {
             Input::Esc => self.quit = true,
             Input::Tab => self.switch(1),
             Input::BackTab => self.switch(Mode::ALL.len() - 1),
+            _ if self.mode == Mode::Progress => {}
             _ if self.mode == Mode::Cards => self.card_input(input, now),
             Input::Combo(c) => self.toggle(c),
             Input::Text(ch) if self.session.is_done() => {
@@ -121,7 +135,7 @@ impl App {
     pub fn tick(&mut self, now: u64) {
         match self.card_state {
             CardState::Done(until) if self.mode == Mode::Cards && now >= until => self.next_card(),
-            _ if self.mode != Mode::Cards => {
+            _ if self.mode.is_typing() => {
                 self.session.tick(now);
                 self.record_if_done(now);
             }
@@ -241,6 +255,7 @@ impl App {
             }
             Mode::Code => self.session = Session::new(content::code_text(&mut self.rng), None),
             Mode::Cards => self.next_card(),
+            Mode::Progress => {}
         }
     }
 

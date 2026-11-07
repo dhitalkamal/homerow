@@ -4,7 +4,7 @@ use crate::app::App;
 use crate::session::Cell;
 use ratatui::Frame;
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
@@ -45,22 +45,25 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
         .unwrap_or(0);
     let first = cur.saturating_sub(1);
     let return_glyph = char::from_u32(0x23CE).unwrap_or('|').to_string();
+    // a blank row between text rows, so each row takes two lines
+    let rows = (area.height as usize).div_ceil(2);
     let out: Vec<Line> = ranges
         .iter()
         .skip(first)
-        .take(area.height as usize)
-        .map(|&(a, b)| {
-            Line::from(
+        .take(rows)
+        .flat_map(|&(a, b)| {
+            let text = Line::from(
                 (a..b)
                     .map(|i| {
                         let ch = s.text[i];
+                        // reversed video works in any theme, light or dark
                         let style = match s.cell(i) {
-                            Cell::Done => Style::new().fg(Color::Reset),
-                            Cell::Current => Style::new()
-                                .add_modifier(Modifier::UNDERLINED | Modifier::BOLD)
-                                .fg(super::ACCENT),
-                            Cell::Missed => Style::new().bg(super::BAD).fg(Color::Black),
-                            Cell::Pending => Style::new().fg(super::DIM),
+                            Cell::Done => Style::new(),
+                            Cell::Current => Style::new().add_modifier(Modifier::REVERSED),
+                            Cell::Missed => {
+                                Style::new().fg(super::BAD).add_modifier(Modifier::REVERSED)
+                            }
+                            Cell::Pending => Style::new().add_modifier(Modifier::DIM),
                         };
                         let shown = if ch == '\n' {
                             return_glyph.clone()
@@ -70,7 +73,8 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
                         Span::styled(shown, style)
                     })
                     .collect::<Vec<_>>(),
-            )
+            );
+            [text, Line::raw("")]
         })
         .collect();
     f.render_widget(Paragraph::new(out), area);

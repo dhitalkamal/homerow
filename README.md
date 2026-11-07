@@ -9,17 +9,31 @@ dependencies.
 
 That puts `homerow` in `~/.cargo/bin`. Run it with `homerow`.
 
+To preview with sample data (two weeks of made-up rounds, your real progress is
+not read or changed):
+
+    homerow --demo
+
 ## modes
 
 Tab cycles through them, Esc quits.
 
-- Baseline 60s: random common words for one minute. Use it to track your WPM.
-- Weak keys: words built around your 3 slowest or most missed letters.
-- Code: short real snippets (Python, Go, Rust, TypeScript, SQL, shell, git).
+- baseline: random common words for 60 seconds. Use it to track your WPM.
+- weak keys: words built around your 3 slowest or most missed letters.
+- code: short real snippets (Python, Go, Rust, TypeScript, SQL, shell, git).
   Indentation after Return is typed for you.
-- Shortcuts: flash cards for text editing, macOS, Finder, zsh and IntelliJ.
+- shortcuts: flash cards for text editing, macOS, Finder, zsh and IntelliJ.
+- progress: dashboard with latest and best speed, accuracy, day streak, a
+  speed trend chart, weak keys and how far along each shortcut deck is.
 
-A wrong key turns red and the cursor waits until you press the right one.
+While typing the screen only shows the text, one stats line and the keyboard.
+Results appear in big digits after each round. A wrong key turns red and the
+cursor waits until you press the right one. The keyboard hides itself when the
+terminal is too short, so the text always has room.
+
+Colors come from your terminal's ANSI palette, so they follow your theme. Each
+key has a colored edge for the finger that presses it; the next key fills with
+that color.
 
 Typing keys: ctrl+F finger colors, ctrl+K weak key heatmap, ctrl+L hide key
 labels (forces you to stop looking).

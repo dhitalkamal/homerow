@@ -1,6 +1,7 @@
 mod app;
 mod cards;
 mod content;
+mod demo;
 mod input;
 mod rng;
 mod session;
@@ -22,8 +23,33 @@ fn now_ms() -> u64 {
         .map_or(0, |d| d.as_millis() as u64)
 }
 
+const HELP: &str = "homerow - typing and mac shortcut trainer
+
+usage: homerow [--demo]
+
+  --demo   start with two weeks of sample progress, kept in a temp file.
+           your real progress is not read or changed.
+
+keys: tab switches mode, esc quits.
+progress: ~/.local/share/homerow/progress.json";
+
 fn main() -> io::Result<()> {
-    let path = store::default_path();
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.iter().any(|a| a == "-h" || a == "--help") {
+        println!("{HELP}");
+        return Ok(());
+    }
+    if let Some(a) = args.iter().find(|a| *a != "--demo") {
+        eprintln!("unknown option {a}, see homerow --help");
+        std::process::exit(2);
+    }
+    let path = if args.is_empty() {
+        store::default_path()
+    } else {
+        let p = std::env::temp_dir().join(format!("homerow-demo-{}.json", std::process::id()));
+        store::save(&p, &demo::progress(now_ms()))?;
+        p
+    };
     let mut app = app::App::new(path.clone(), now_ms());
     let mut term = ratatui::init();
     // kitty keyboard protocol: lets cmd (super) combos reach us. terminals
@@ -40,7 +66,13 @@ fn main() -> io::Result<()> {
         let _ = execute!(stdout(), PopKeyboardEnhancementFlags);
     }
     ratatui::restore();
-    println!("progress saved to {}", path.display());
+    if args.is_empty() {
+        println!("progress saved to {}", path.display());
+    } else {
+        // demo data is throwaway, clean it up
+        let _ = std::fs::remove_file(&path);
+        println!("demo closed, your real progress was not touched");
+    }
     result
 }
 
