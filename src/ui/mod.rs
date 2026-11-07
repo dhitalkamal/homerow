@@ -6,6 +6,7 @@ pub mod dashboard;
 pub mod focus;
 pub mod hands;
 pub mod keyboard;
+pub mod layout;
 pub mod prompt;
 pub mod settings;
 
