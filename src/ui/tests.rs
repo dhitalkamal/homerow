@@ -251,3 +251,14 @@ fn very_big_terminal_gets_the_large_keyboard() {
     assert!(normal.contains(" 1   2 "), "{normal}");
     assert!(big.contains("left hand"));
 }
+
+#[test]
+fn footer_avoids_ligature_pairs() {
+    // fonts like jetbrains mono draw "/=" and "!=" as one symbol
+    let (a, _d) = app();
+    let s = screen(&a, 120, 40);
+    let footer = s.lines().rfind(|l| l.contains("quit")).unwrap();
+    for pair in ["/=", "!=", "=>", "->", "<="] {
+        assert!(!footer.contains(pair), "{pair:?} in {footer:?}");
+    }
+}

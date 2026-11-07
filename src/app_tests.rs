@@ -269,6 +269,7 @@ fn size_keys_step_from_what_auto_is_showing() {
     let (mut a, _d) = app();
     a.screen = (150, 50);
     assert_eq!(a.progress.density, store::Density::Auto);
+    // auto shows large at this size, so one step down is spacious
     a.handle(combo("ctrl+-"), 0);
-    assert_eq!(a.progress.density, store::Density::Comfortable);
+    assert_eq!(a.progress.density, store::Density::Spacious);
 }

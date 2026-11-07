@@ -97,8 +97,9 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, now: u64, density: Density) 
     };
     let text_h = p.rows * if p.spaced { 2 } else { 1 };
     let hands_h = if p.hands { hands::HEIGHT } else { 0 };
+    // a little above center reads as centered (more room below than above)
     let [_, text, _, stats, _, kbd, _, hand_area, _] = Layout::vertical([
-        Constraint::Fill(1),
+        Constraint::Fill(4),
         Constraint::Length(text_h),
         Constraint::Length(if p.spaced { 0 } else { 1 }),
         Constraint::Length(1),
@@ -106,7 +107,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, now: u64, density: Density) 
         Constraint::Length(kbd_h),
         Constraint::Length(if p.hands { 1 } else { 0 }),
         Constraint::Length(hands_h),
-        Constraint::Fill(1),
+        Constraint::Fill(5),
     ])
     .areas(area);
     prompt::render(f, centered(text, p.text_width, text.height), app, p.spaced);

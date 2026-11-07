@@ -171,16 +171,6 @@ fn auto_is_the_default_density() {
 }
 
 #[test]
-fn auto_follows_the_terminal_size() {
-    use Density::*;
-    assert_eq!(Auto.resolve(100, 40), Comfortable);
-    assert_eq!(Auto.resolve(79, 40), Compact);
-    assert_eq!(Auto.resolve(100, 25), Compact);
-    assert_eq!(Auto.resolve(140, 48), Spacious);
-    assert_eq!(Auto.resolve(139, 60), Comfortable);
-}
-
-#[test]
 fn a_chosen_size_ignores_the_terminal() {
     use Density::*;
     for d in [Compact, Comfortable, Spacious] {
@@ -201,18 +191,22 @@ fn version_1_files_switch_to_auto_size() {
 }
 
 #[test]
-fn auto_picks_large_on_very_big_terminals() {
-    use Density::*;
-    assert_eq!(Auto.resolve(190, 50), Large);
-    assert_eq!(Auto.resolve(170, 46), Large);
-    assert_eq!(Auto.resolve(169, 50), Spacious);
-    assert_eq!(Auto.resolve(190, 45), Comfortable);
-}
-
-#[test]
 fn large_is_the_top_size_step() {
     use Density::*;
     assert_eq!(Spacious.step(true), Large);
     assert_eq!(Large.step(true), Large);
     assert_eq!(Large.step(false), Spacious);
+}
+
+#[test]
+fn auto_decides_mostly_by_width() {
+    use Density::*;
+    assert_eq!(Auto.resolve(100, 40), Comfortable);
+    assert_eq!(Auto.resolve(79, 40), Compact);
+    assert_eq!(Auto.resolve(100, 19), Compact);
+    assert_eq!(Auto.resolve(110, 30), Spacious);
+    assert_eq!(Auto.resolve(139, 60), Spacious);
+    assert_eq!(Auto.resolve(140, 30), Large);
+    // the window from the screenshot
+    assert_eq!(Auto.resolve(151, 43), Large);
 }

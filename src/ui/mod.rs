@@ -91,7 +91,7 @@ fn draw_footer(f: &mut Frame, area: Rect, app: &App, now: u64) {
             ("space", "reveal"),
             ("[ ]", "deck"),
         ],
-        Mode::Progress => &[("tab", "mode"), ("esc", "quit"), ("ctrl+-/=", "size")],
+        Mode::Progress => &[("tab", "mode"), ("esc", "quit"), ("ctrl + -", "size")],
         Mode::Settings => &[
             ("up/down", "move"),
             ("space", "change"),
@@ -100,7 +100,7 @@ fn draw_footer(f: &mut Frame, area: Rect, app: &App, now: u64) {
             ("esc", "quit"),
         ],
         _ if app.session.is_done() => &[("return", "next round"), ("tab", "mode"), ("esc", "quit")],
-        _ => &[("tab", "mode"), ("esc", "quit"), ("ctrl+-/=", "size")],
+        _ => &[("tab", "mode"), ("esc", "quit"), ("ctrl + -", "size")],
     };
     // an error beats a size toast, a toast beats the key hints
     let line = match (&app.notice, app.toast(now)) {

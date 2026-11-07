@@ -84,13 +84,14 @@ impl Density {
             i.saturating_sub(1)
         }]
     }
-    // the size to draw at: auto picks from the full terminal size,
-    // a chosen size is used as is
+    // the size to draw at: auto picks mostly by terminal width, since the
+    // layout already drops hands and keyboard when height runs short.
+    // a chosen size is used as is.
     pub fn resolve(self, width: u16, height: u16) -> Density {
         match self {
-            Density::Auto if width < 80 || height < 26 => Density::Compact,
-            Density::Auto if width >= 170 && height >= 46 => Density::Large,
-            Density::Auto if width >= 140 && height >= 48 => Density::Spacious,
+            Density::Auto if width < 80 || height < 20 => Density::Compact,
+            Density::Auto if width >= 140 => Density::Large,
+            Density::Auto if width >= 110 => Density::Spacious,
             Density::Auto => Density::Comfortable,
             d => d,
         }

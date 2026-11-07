@@ -53,11 +53,14 @@ homerow redraws to fit whatever size it gets:
 
 The density follows the window too. By default it is auto:
 
-- below 80 columns or 26 rows: compact (text only, no line spacing)
-- from 140 columns and 48 rows: spacious (wider text, an extra row)
-- from 170 columns and 46 rows: large (110 column text, a keyboard with
-  double width, two line keycaps and bigger hands)
+- below 80 columns or 20 rows: compact (text only, no line spacing)
+- from 110 columns: spacious (wider text, an extra row)
+- from 140 columns: large (110 column text, a keyboard with double width,
+  two line keycaps and bigger hands)
 - in between: comfortable
+
+Auto looks mostly at width; when the window is short the hands and keyboard
+step down on their own.
 
 To pick one yourself, use ctrl+= and ctrl+- (they step from whatever auto is
 showing) or the size row on the settings tab, where space cycles auto,
