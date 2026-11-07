@@ -37,11 +37,14 @@ pub fn draw(f: &mut Frame, app: &App, now: u64) {
     ])
     .areas(f.area().inner(ratatui::layout::Margin::new(2, 1)));
     draw_header(f, header, app);
+    // auto size is decided once per frame from the full terminal size
+    let full = f.area();
+    let density = app.progress.density.resolve(full.width, full.height);
     match app.mode {
         Mode::Cards => card::render(f, body, app),
         Mode::Progress => dashboard::render(f, body, app, now),
-        Mode::Settings => settings::render(f, body, app),
-        _ => focus::render(f, body, app, now),
+        Mode::Settings => settings::render(f, body, app, density),
+        _ => focus::render(f, body, app, now, density),
     }
     draw_footer(f, footer, app, now);
 }

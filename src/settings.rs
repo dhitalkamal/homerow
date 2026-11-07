@@ -68,18 +68,21 @@ pub fn toggle(item: Item, p: &mut Progress) {
         Some(on) => *on = !*on,
         None => {
             p.density = match p.density {
-                Density::Spacious => Density::Compact,
-                d => d.step(true),
+                Density::Auto => Density::Compact,
+                Density::Compact => Density::Comfortable,
+                Density::Comfortable => Density::Spacious,
+                Density::Spacious => Density::Auto,
             }
         }
     }
 }
 
-// right turns a switch on or makes size bigger, left the opposite
-pub fn adjust(item: Item, p: &mut Progress, right: bool) {
+// right turns a switch on or makes size bigger, left the opposite.
+// from auto, size steps from whatever auto shows at this terminal size.
+pub fn adjust(item: Item, p: &mut Progress, right: bool, screen: (u16, u16)) {
     match switch(item, p) {
         Some(on) => *on = right,
-        None => p.density = p.density.step(right),
+        None => p.density = p.density.resolve(screen.0, screen.1).step(right),
     }
 }
 
@@ -100,25 +103,28 @@ mod tests {
     }
 
     #[test]
-    fn toggle_cycles_size_round() {
+    fn toggle_cycles_size_round_through_auto() {
         let mut p = Progress::default();
-        toggle(Item::Size, &mut p);
-        assert_eq!(p.density, Density::Spacious);
-        toggle(Item::Size, &mut p);
-        assert_eq!(p.density, Density::Compact);
-        assert_eq!(Item::Size.value(&p), "compact");
+        assert_eq!(Item::Size.value(&p), "auto");
+        let mut seen = Vec::new();
+        for _ in 0..4 {
+            toggle(Item::Size, &mut p);
+            seen.push(p.density);
+        }
+        use Density::*;
+        assert_eq!(seen, vec![Compact, Comfortable, Spacious, Auto]);
     }
 
     #[test]
     fn left_and_right_set_switches_and_step_size() {
         let mut p = Progress::default();
-        adjust(Item::Heatmap, &mut p, true);
-        adjust(Item::Heatmap, &mut p, true);
+        adjust(Item::Heatmap, &mut p, true, (100, 40));
+        adjust(Item::Heatmap, &mut p, true, (100, 40));
         assert!(p.settings.heatmap, "right means on, not flip");
-        adjust(Item::Heatmap, &mut p, false);
+        adjust(Item::Heatmap, &mut p, false, (100, 40));
         assert!(!p.settings.heatmap);
-        adjust(Item::Size, &mut p, false);
-        adjust(Item::Size, &mut p, false);
+        adjust(Item::Size, &mut p, false, (100, 40));
+        adjust(Item::Size, &mut p, false, (100, 40));
         assert_eq!(p.density, Density::Compact, "size stops at the ends");
     }
 }

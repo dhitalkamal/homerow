@@ -2,16 +2,19 @@
 use super::{ACCENT, bold, centered, dim, hands, keyboard};
 use crate::app::App;
 use crate::settings::{ITEMS, Item};
+use crate::store::Density;
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
-const LIST_WIDTH: u16 = 40;
+// marker, padded label and the longest value, "auto (comfortable)"
+const LIST_WIDTH: u16 = 46;
 // the preview lights this key so you can see colors and hands at work
 const SAMPLE: char = 'f';
 
-pub fn render(f: &mut Frame, area: Rect, app: &App) {
+// density is what auto resolved to, shown next to "auto" on the size row
+pub fn render(f: &mut Frame, area: Rect, app: &App, density: Density) {
     let list_h = ITEMS.len() as u16;
     let opts = app.progress.settings;
     let hands_h = if opts.hands { hands::HEIGHT + 1 } else { 0 };
@@ -29,7 +32,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
     let rows: Vec<Line> = ITEMS
         .iter()
         .enumerate()
-        .map(|(i, item)| row(app, i, *item))
+        .map(|(i, item)| row(app, i, *item, density))
         .collect();
     f.render_widget(
         Paragraph::new(rows),
@@ -51,7 +54,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
     }
 }
 
-fn row(app: &App, i: usize, item: Item) -> Line<'static> {
+fn row(app: &App, i: usize, item: Item, density: Density) -> Line<'static> {
     let selected = i == app.settings_row;
     let marker = if selected {
         Span::styled("> ", bold().fg(ACCENT))
@@ -64,6 +67,11 @@ fn row(app: &App, i: usize, item: Item) -> Line<'static> {
         ratatui::style::Style::new()
     };
     let value = item.value(&app.progress);
+    let shown = if item == Item::Size && app.progress.density == Density::Auto {
+        format!("auto ({})", density.label())
+    } else {
+        value.to_string()
+    };
     let value_style = match value {
         "on" => bold().fg(ACCENT),
         "off" => dim(),
@@ -72,6 +80,6 @@ fn row(app: &App, i: usize, item: Item) -> Line<'static> {
     Line::from(vec![
         marker,
         Span::styled(format!("{:<24}", item.label()), label_style),
-        Span::styled(value, value_style),
+        Span::styled(shown, value_style),
     ])
 }

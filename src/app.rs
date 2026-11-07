@@ -87,6 +87,8 @@ pub struct App {
     pub notice: Option<String>,
     // selected row on the settings tab
     pub settings_row: usize,
+    // last known terminal size, so auto size can be stepped from
+    pub screen: (u16, u16),
     pub quit: bool,
     // the current round is already saved, so a late tick can't save it twice
     recorded: bool,
@@ -109,6 +111,7 @@ impl App {
             deck: None,
             notice,
             settings_row: 0,
+            screen: (100, 40),
             quit: false,
             recorded: false,
             toast_msg: None,
@@ -123,7 +126,8 @@ impl App {
             Input::Esc => self.quit = true,
             Input::Combo(c) if size_step(c).is_some() => {
                 let bigger = size_step(c) == Some(true);
-                self.progress.density = self.progress.density.step(bigger);
+                let now_showing = self.progress.density.resolve(self.screen.0, self.screen.1);
+                self.progress.density = now_showing.step(bigger);
                 self.toast_msg = Some((
                     format!("size: {}", self.progress.density.label()),
                     now + TOAST_MS,

@@ -6,7 +6,8 @@ use std::path::{Path, PathBuf};
 use std::{fs, io};
 
 // bump when the shape changes in a way old files can't be read as
-pub const VERSION: u32 = 1;
+// 2: density gained auto, version 1 files are moved to it
+pub const VERSION: u32 = 2;
 const MAX_ROUNDS: usize = 200;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -57,8 +58,10 @@ impl Default for Settings {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Density {
-    Compact,
+    // follow the terminal size
     #[default]
+    Auto,
+    Compact,
     Comfortable,
     Spacious,
 }
@@ -74,8 +77,19 @@ impl Density {
             i.saturating_sub(1)
         }]
     }
+    // the size to draw at: auto picks from the full terminal size,
+    // a chosen size is used as is
+    pub fn resolve(self, width: u16, height: u16) -> Density {
+        match self {
+            Density::Auto if width < 80 || height < 26 => Density::Compact,
+            Density::Auto if width >= 140 && height >= 48 => Density::Spacious,
+            Density::Auto => Density::Comfortable,
+            d => d,
+        }
+    }
     pub fn label(self) -> &'static str {
         match self {
+            Density::Auto => "auto",
             Density::Compact => "compact",
             Density::Comfortable => "comfortable",
             Density::Spacious => "spacious",
@@ -123,7 +137,14 @@ pub fn load(path: &Path) -> (Progress, Option<String>) {
         return (Progress::default(), None);
     };
     match serde_json::from_str::<Progress>(&text) {
-        Ok(p) => (p, None),
+        Ok(mut p) => {
+            // density could only be saved as the default before auto existed
+            if p.version < 2 {
+                p.density = Density::Auto;
+                p.version = VERSION;
+            }
+            (p, None)
+        }
         Err(err) => {
             let stamp = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)

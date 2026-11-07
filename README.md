@@ -51,11 +51,15 @@ homerow redraws to fit whatever size it gets:
 - medium: compact keyboard (no blank lines between key rows)
 - small or narrow: text and stats only
 
-On top of that, ctrl+= and ctrl+- change the density, saved between runs:
+The density follows the window too. By default it is auto:
 
-- compact: text only, no line spacing
-- comfortable: the default layout
-- spacious: wider text column and an extra row of text
+- below 80 columns or 26 rows: compact (text only, no line spacing)
+- from 140 columns and 48 rows: spacious (wider text, an extra row)
+- in between: comfortable
+
+To pick one yourself, use ctrl+= and ctrl+- (they step from whatever auto is
+showing) or the size row on the settings tab, where space cycles auto,
+compact, comfortable and spacious. Your choice is saved.
 
 ctrl+= needs a terminal that reports ctrl with symbol keys (kitty, WezTerm,
 Ghostty with the kitty keyboard protocol). ctrl and the + key works too.

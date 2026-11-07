@@ -263,3 +263,12 @@ fn typing_on_the_settings_tab_does_nothing() {
     a.tick(999_999);
     assert!(a.progress.stats.is_empty() && a.progress.rounds.is_empty());
 }
+
+#[test]
+fn size_keys_step_from_what_auto_is_showing() {
+    let (mut a, _d) = app();
+    a.screen = (150, 50);
+    assert_eq!(a.progress.density, store::Density::Auto);
+    a.handle(combo("ctrl+-"), 0);
+    assert_eq!(a.progress.density, store::Density::Comfortable);
+}

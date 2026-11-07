@@ -18,7 +18,7 @@ impl App {
                 Key::Up => self.settings_row = self.settings_row.saturating_sub(1),
                 Key::Down => self.settings_row = (self.settings_row + 1).min(last),
                 Key::Left | Key::Right => {
-                    settings::adjust(item, &mut self.progress, c.key == Key::Right);
+                    settings::adjust(item, &mut self.progress, c.key == Key::Right, self.screen);
                     self.save();
                 }
                 _ => {}

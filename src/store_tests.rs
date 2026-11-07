@@ -100,7 +100,8 @@ fn older_file_missing_fields_still_loads() {
     assert_eq!(warn, None);
     assert_eq!(p.stats[&'a'].n, 5);
     assert!(p.rounds.is_empty());
-    assert_eq!(p.density, Density::Comfortable);
+    // a version 1 file is migrated to auto size
+    assert_eq!(p.density, Density::Auto);
     assert_eq!(p.settings, Settings::default());
 }
 
@@ -161,4 +162,39 @@ fn day_key_matches_known_dates() {
     assert_eq!(day_key(0), "1970-01-01");
     assert_eq!(day_key(951_782_400_000), "2000-02-29");
     assert_eq!(day_key(1_794_009_600_000), "2026-11-07");
+}
+
+#[test]
+fn auto_is_the_default_density() {
+    assert_eq!(Progress::default().density, Density::Auto);
+}
+
+#[test]
+fn auto_follows_the_terminal_size() {
+    use Density::*;
+    assert_eq!(Auto.resolve(100, 40), Comfortable);
+    assert_eq!(Auto.resolve(79, 40), Compact);
+    assert_eq!(Auto.resolve(100, 25), Compact);
+    assert_eq!(Auto.resolve(140, 48), Spacious);
+    assert_eq!(Auto.resolve(139, 60), Comfortable);
+}
+
+#[test]
+fn a_chosen_size_ignores_the_terminal() {
+    use Density::*;
+    for d in [Compact, Comfortable, Spacious] {
+        assert_eq!(d.resolve(60, 20), d);
+        assert_eq!(d.resolve(200, 80), d);
+    }
+}
+
+#[test]
+fn version_1_files_switch_to_auto_size() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("p.json");
+    fs::write(&path, r#"{"version":1,"density":"comfortable"}"#).unwrap();
+    let (p, _) = load(&path);
+    assert_eq!((p.density, p.version), (Density::Auto, VERSION));
+    fs::write(&path, r#"{"version":2,"density":"spacious"}"#).unwrap();
+    assert_eq!(load(&path).0.density, Density::Spacious);
 }

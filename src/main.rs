@@ -80,6 +80,9 @@ fn main() -> io::Result<()> {
 fn run(term: &mut ratatui::DefaultTerminal, app: &mut app::App) -> io::Result<()> {
     while !app.quit {
         let now = now_ms();
+        if let Ok(size) = term.size() {
+            app.screen = (size.width, size.height);
+        }
         app.tick(now);
         term.draw(|f| ui::draw(f, app, now))?;
         // short poll so the baseline clock and live wpm keep moving

@@ -36,7 +36,7 @@ pub struct Plan {
 pub fn plan(width: u16, height: u16, density: Density, keyboard: bool, hands: bool) -> Plan {
     let (mut rows, spaced, w) = match density {
         Density::Compact => (3, false, 60),
-        Density::Comfortable => (3, true, 70),
+        Density::Comfortable | Density::Auto => (3, true, 70),
         Density::Spacious => (4, true, 84),
     };
     let per = if spaced { 2 } else { 1 };
@@ -72,18 +72,13 @@ pub fn plan(width: u16, height: u16, density: Density, keyboard: bool, hands: bo
     }
 }
 
-pub fn render(f: &mut Frame, area: Rect, app: &App, now: u64) {
+// density is already resolved (never auto) by the caller
+pub fn render(f: &mut Frame, area: Rect, app: &App, now: u64, density: Density) {
     if app.session.is_done() {
         return results(f, area, app);
     }
     let opts = app.progress.settings;
-    let p = plan(
-        area.width,
-        area.height,
-        app.progress.density,
-        opts.keyboard,
-        opts.hands,
-    );
+    let p = plan(area.width, area.height, density, opts.keyboard, opts.hands);
     let kbd_h = match p.kbd {
         Kbd::Full => keyboard::FULL_HEIGHT,
         Kbd::Compact => keyboard::COMPACT_HEIGHT,

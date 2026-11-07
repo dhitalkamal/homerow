@@ -224,3 +224,16 @@ fn settings_tab_lists_switches_with_a_live_preview() {
         assert!(s.contains(want), "missing {want:?} in\n{s}");
     }
 }
+
+#[test]
+fn auto_size_shows_more_text_on_a_big_terminal() {
+    let (a, _d) = app();
+    let rows_of_text = |w, h| {
+        let s = screen(&a, w, h);
+        let rows: Vec<&str> = s.lines().collect();
+        let stats = rows.iter().position(|r| r.contains("wpm")).unwrap();
+        rows[3..stats].iter().filter(|r| !r.trim().is_empty()).count()
+    };
+    assert_eq!(rows_of_text(100, 40), 3);
+    assert_eq!(rows_of_text(150, 50), 4);
+}
