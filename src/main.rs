@@ -3,6 +3,7 @@ mod baseline;
 mod cards;
 mod cli;
 mod content;
+mod daily;
 mod demo;
 mod history;
 mod input;

@@ -82,6 +82,10 @@ with the "race your best" row on the settings tab.
   have unlocked, as letter groups at first and real words once there are
   enough, with the newest key coming up often. The keyboard and hands always
   show here so you can see where the new key is.
+- daily: the daily challenge. The same 50 words for everyone on the same
+  version that day (picked from the UTC date, no server), so you can compare
+  wpm with friends. Retry as often as you like; the stats line shows your best
+  today, and the ghost races it.
 - shortcuts: flash cards for text editing, macOS, Finder, zsh and IntelliJ.
 - progress: one view per mode (left/right switches between all modes,
   baseline, weak keys and code). Each view shows where you are now (average of

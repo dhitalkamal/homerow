@@ -68,7 +68,7 @@ fn draw_header(f: &mut Frame, area: Rect, app: &App) {
     let mut tabs = Vec::new();
     for (i, m) in Mode::ALL.iter().enumerate() {
         if i > 0 {
-            tabs.push(Span::styled("   ", dim()));
+            tabs.push(Span::styled("  ", dim()));
         }
         let style = if *m == app.mode {
             bold().fg(ACCENT)
