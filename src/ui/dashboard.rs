@@ -2,8 +2,7 @@
 // where you started, where you are now, the trend, weak keys and decks
 use super::{ACCENT, bold, dim};
 use crate::app::App;
-use crate::cards::{Deck, known};
-use crate::content::CARDS;
+use crate::cards::known;
 use crate::history::{self, BASE, CODE, DAILY, KEYS, LESSONS, MISTAKES, View};
 use crate::stats::{MIN_SAMPLES, avg_ms, weak_pairs, weakness};
 use crate::store::{day_key, goal_streak};
@@ -45,7 +44,7 @@ fn bar(filled: usize, width: usize, color: Color) -> [Span<'static>; 2] {
 
 pub fn render(f: &mut Frame, area: Rect, app: &App, now: u64) {
     let view = app.progress_view;
-    let deck_h = Deck::ALL.len() as u16 + 2;
+    let deck_h = app.decks().len() as u16 + 2;
     let [views, tiles, middle, decks] = Layout::vertical([
         Constraint::Length(1),
         Constraint::Length(4),
@@ -275,10 +274,11 @@ fn draw_weak(f: &mut Frame, area: Rect, app: &App, view: View) {
 }
 
 fn draw_decks(f: &mut Frame, area: Rect, app: &App) {
-    let lines: Vec<Line> = Deck::ALL
-        .iter()
-        .map(|&d| {
-            let (k, n) = known(CARDS, &app.progress.boxes, d);
+    let lines: Vec<Line> = app
+        .decks()
+        .into_iter()
+        .map(|d| {
+            let (k, n) = known(&app.cards, &app.progress.boxes, d);
             let mut spans = vec![Span::raw(format!(" {:<16}", d.label()))];
             spans.extend(bar((k * 24).checked_div(n).unwrap_or(0), 24, super::GOOD));
             spans.push(Span::styled(format!("  {k}/{n} learned"), dim()));

@@ -2,7 +2,6 @@
 use super::{bold, dim};
 use crate::app::{App, CardState};
 use crate::cards::{Combo, Key, known};
-use crate::content::CARDS;
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Color, Style};
@@ -100,7 +99,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
         Constraint::Length(1),
     ])
     .areas(area);
-    let card = CARDS[app.card];
+    let card = app.cards[app.card];
     let answer = combo_labels(card.combo);
     let center = |l: Vec<Line<'static>>| {
         Paragraph::new(l)
@@ -162,9 +161,9 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
     f.render_widget(center(vec![status_line]), status);
 
     let (k, n) = match app.deck {
-        Some(d) => known(CARDS, &app.progress.boxes, d),
-        None => crate::cards::Deck::ALL.iter().fold((0, 0), |(a, b), d| {
-            let (x, y) = known(CARDS, &app.progress.boxes, *d);
+        Some(d) => known(&app.cards, &app.progress.boxes, d),
+        None => app.decks().iter().fold((0, 0), |(a, b), d| {
+            let (x, y) = known(&app.cards, &app.progress.boxes, *d);
             (a + x, b + y)
         }),
     };

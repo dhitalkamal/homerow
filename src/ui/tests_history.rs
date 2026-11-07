@@ -330,3 +330,27 @@ fn sequence_cards_show_how_far_you_are() {
     let s = screen(&a, 100, 40);
     assert!(s.contains("1 of 2 keys"), "{s}");
 }
+
+#[test]
+fn custom_decks_show_on_the_dashboard() {
+    use crate::deckfile::{Entry, to_cards};
+    let (mut a, _d) = app();
+    a.add_cards(to_cards(vec![Entry {
+        deck: "Figma".into(),
+        action: "Group".into(),
+        keys: "cmd+G".into(),
+    }]));
+    a.progress.add_round(
+        Round {
+            mode: "base".into(),
+            wpm: 30,
+            acc: 95,
+            at_ms: NOW,
+            test: None,
+        },
+        60_000,
+    );
+    go(&mut a, Mode::Progress);
+    let s = screen(&a, 110, 48);
+    assert!(s.contains("Figma") && s.contains("0/1 learned"), "{s}");
+}

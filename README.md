@@ -191,6 +191,26 @@ Ghostty with the kitty keyboard protocol). ctrl and the + key works too.
 Shortcut keys: press the real combo. Space shows the answer (counts as a miss).
 `[` and `]` change deck. A card is learned after 3 right answers in a row.
 
+## your own decks
+
+Write your own shortcuts in `~/.config/homerow/decks.txt` (or pass
+`--decks PATH`) and they show up as decks on the shortcuts tab and the
+progress tab:
+
+    # lines starting with # are comments
+    [Figma]
+    Duplicate selection = cmd+D
+    Group selection = cmd+G
+    Zoom to fit = shift+1
+
+    [tmux]
+    New window = ctrl+a c
+
+Keys use the same names as the built-in cards (cmd, opt, ctrl, shift, Left,
+Up, Back, Enter, Esc, Tab, Space, F1-F12); separate steps with spaces for
+sequences like `ctrl+a c`. Keys a terminal never sees become recall cards.
+Bad lines are skipped and the first one is shown at the bottom of the screen.
+
 ## recall cards
 
 Some shortcuts never reach a terminal app because macOS or the terminal takes

@@ -111,6 +111,8 @@ pub struct App {
     pub path: PathBuf,
     pub card: usize,
     pub card_state: CardState,
+    // built-in cards followed by any from your deck file
+    pub cards: Vec<cards::Card>,
     // steps of a key-sequence card already pressed ("ctrl+b c" has two)
     pub seq_pos: usize,
     pub deck: Option<Deck>,
@@ -154,6 +156,7 @@ impl App {
             path,
             card: 0,
             card_state: CardState::Ask,
+            cards: CARDS.to_vec(),
             seq_pos: 0,
             deck: None,
             notice,
@@ -259,7 +262,13 @@ impl App {
 
     fn next_card(&mut self) {
         let last = Some(self.card);
-        self.card = cards::pick(CARDS, &self.progress.boxes, self.deck, last, &mut self.rng);
+        self.card = cards::pick(
+            &self.cards,
+            &self.progress.boxes,
+            self.deck,
+            last,
+            &mut self.rng,
+        );
         self.card_state = CardState::Ask;
         self.seq_pos = 0;
     }
@@ -293,6 +302,22 @@ impl App {
         } else {
             history::merged(&self.progress, &[history::BASE, history::KEYS])
         }
+    }
+
+    // add cards from your deck file after the built-in ones
+    pub fn add_cards(&mut self, extra: Vec<cards::Card>) {
+        self.cards.extend(extra);
+    }
+
+    // built-in decks, then custom ones in the order the file names them
+    pub fn decks(&self) -> Vec<Deck> {
+        let mut out: Vec<Deck> = Deck::ALL.to_vec();
+        for c in &self.cards {
+            if !out.contains(&c.deck) {
+                out.push(c.deck);
+            }
+        }
+        out
     }
 
     pub fn last_round(&self) -> Option<&Round> {

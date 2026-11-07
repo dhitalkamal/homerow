@@ -6,6 +6,8 @@ mod cli;
 mod clipboard;
 mod content;
 mod daily;
+mod deckfile;
+mod decks;
 mod demo;
 mod history;
 mod input;
@@ -29,6 +31,41 @@ use std::io::Write;
 use std::io::{self, stdout};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+// where your deck file lives unless --decks says otherwise
+fn default_decks_path() -> std::path::PathBuf {
+    let base = std::env::var_os("XDG_CONFIG_HOME")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| {
+            std::path::PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".config")
+        });
+    base.join(brand::NAME).join("decks.txt")
+}
+
+// cards from your deck file plus a note about skipped lines. a missing
+// default file just means no custom decks; a missing --decks file is an error.
+fn load_decks(explicit: Option<&std::path::Path>) -> (Vec<cards::Card>, Option<String>) {
+    let path = explicit
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(default_decks_path);
+    let text = match std::fs::read_to_string(&path) {
+        Ok(t) => t,
+        Err(_) if explicit.is_none() => return (Vec::new(), None),
+        Err(e) => {
+            eprintln!("could not read {}: {e}", path.display());
+            std::process::exit(2);
+        }
+    };
+    let (entries, errs) = deckfile::parse(&text);
+    let note = errs.first().map(|first| {
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        format!("{name}: {} line(s) skipped, first {first}", errs.len())
+    });
+    (deckfile::to_cards(entries), note)
+}
+
 fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -43,6 +80,8 @@ usage: homerow [--demo] [--file PATH]
                 your real progress is not read or changed.
   -f, --file    type your own text: the code tab uses PATH, a few lines at a
                 time.
+  --decks       your own shortcut decks from PATH (default
+                ~/.config/homerow/decks.txt when it exists).
 
 keys: tab switches mode, esc quits.
 progress: ~/.local/share/homerow/progress.json";
@@ -88,7 +127,13 @@ fn main() -> io::Result<()> {
     } else {
         store::default_path()
     };
+    // your own shortcut decks, read before the screen opens so errors are readable
+    let (custom, deck_note) = load_decks(args.decks.as_deref());
     let mut app = app::App::new(path.clone(), now_ms());
+    app.add_cards(custom);
+    if app.notice.is_none() {
+        app.notice = deck_note;
+    }
     if let Some(p) = &args.file {
         app.own = own;
         app.own_name = p.file_name().map(|n| n.to_string_lossy().into_owned());

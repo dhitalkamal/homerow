@@ -1,10 +1,11 @@
-// command line options: --demo, --file PATH, --help
+// command line options: --demo, --file PATH, --decks PATH, --help
 use std::path::PathBuf;
 
 #[derive(Debug, Default, PartialEq)]
 pub struct Args {
     pub demo: bool,
     pub file: Option<PathBuf>,
+    pub decks: Option<PathBuf>,
     pub help: bool,
 }
 
@@ -15,6 +16,12 @@ pub fn parse(args: &[String]) -> Result<Args, String> {
         match a.as_str() {
             "--demo" => out.demo = true,
             "-h" | "--help" => out.help = true,
+            "--decks" => {
+                let path = it
+                    .next()
+                    .ok_or_else(|| "--decks needs a path".to_string())?;
+                out.decks = Some(PathBuf::from(path));
+            }
             "-f" | "--file" => {
                 let path = it.next().ok_or_else(|| "--file needs a path".to_string())?;
                 out.file = Some(PathBuf::from(path));
@@ -62,5 +69,14 @@ mod tests {
             p(&["--bogus"]),
             Err("unknown option --bogus, see homerow --help".to_string())
         );
+    }
+
+    #[test]
+    fn decks_takes_a_path() {
+        assert_eq!(
+            p(&["--decks", "my.txt"]).unwrap().decks,
+            Some(PathBuf::from("my.txt"))
+        );
+        assert_eq!(p(&["--decks"]), Err("--decks needs a path".to_string()));
     }
 }
