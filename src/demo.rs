@@ -66,6 +66,24 @@ pub fn progress(now: u64) -> Progress {
             },
         );
     }
+    // letter pairs: most are quick, a few common ones drag
+    for (pair, e, avg) in [
+        ("th", 1, 180),
+        ("he", 0, 170),
+        ("in", 1, 190),
+        ("er", 2, 260),
+        ("ng", 6, 420),
+        ("ou", 3, 300),
+    ] {
+        p.pairs.insert(
+            pair.into(),
+            KeyStat {
+                n: 40,
+                e,
+                ms: 40 * avg,
+            },
+        );
+    }
     // some cards learned per deck, the rest early
     for (i, card) in CARDS.iter().enumerate() {
         let b = if i % 3 == 0 {
@@ -112,6 +130,8 @@ mod tests {
         let weak = weak_letters(&crate::history::merged(&p, &["base", "keys"]), 3);
         assert!(weak.contains(&'q') && weak.contains(&'z'), "{weak:?}");
         assert!(streak(&p.days, NOW) >= 5);
+        let pairs = crate::stats::weak_pairs(&p.pairs, 2);
+        assert_eq!(pairs.first().map(String::as_str), Some("ng"), "{pairs:?}");
     }
 
     #[test]

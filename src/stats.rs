@@ -11,6 +11,8 @@ pub struct KeyStat {
 }
 
 pub type KeyStats = BTreeMap<char, KeyStat>;
+// same numbers for two letters typed one after the other, like "th"
+pub type PairStats = BTreeMap<String, KeyStat>;
 
 // a key needs this many correct hits before its numbers are trusted
 pub const MIN_SAMPLES: u32 = 5;
@@ -57,6 +59,21 @@ pub fn weak_letters(stats: &KeyStats, k: usize) -> Vec<char> {
     // stable sort keeps alphabetical order among ties
     scored.sort_by(|a, b| b.1.total_cmp(&a.1));
     scored.into_iter().take(k).map(|(c, _)| c).collect()
+}
+
+// the k slowest or most missed letter pairs that have enough samples
+pub fn weak_pairs(pairs: &PairStats, k: usize) -> Vec<String> {
+    let (n, ms) = pairs
+        .values()
+        .fold((0u64, 0u64), |(n, ms), s| (n + s.n as u64, ms + s.ms));
+    let avg = if n == 0 { 0.0 } else { ms as f64 / n as f64 };
+    let mut scored: Vec<(&String, f64)> = pairs
+        .iter()
+        .filter(|(_, s)| s.n >= MIN_SAMPLES)
+        .map(|(p, s)| (p, weakness(Some(s), avg)))
+        .collect();
+    scored.sort_by(|a, b| b.1.total_cmp(&a.1));
+    scored.into_iter().take(k).map(|(p, _)| p.clone()).collect()
 }
 
 #[cfg(test)]
@@ -126,5 +143,15 @@ mod tests {
             s.insert(c, st(50, 0, 5000));
         }
         assert_eq!(weak_letters(&s, 1), vec!['z']);
+    }
+
+    #[test]
+    fn weak_pairs_are_the_slowest_and_most_missed_with_enough_samples() {
+        let mut p = PairStats::new();
+        p.insert("th".into(), st(20, 0, 2000));
+        p.insert("ng".into(), st(20, 6, 9000));
+        p.insert("er".into(), st(20, 0, 6000));
+        p.insert("qz".into(), st(2, 2, 3000));
+        assert_eq!(weak_pairs(&p, 2), vec!["ng".to_string(), "er".to_string()]);
     }
 }

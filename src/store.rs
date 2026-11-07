@@ -36,6 +36,8 @@ pub struct Progress {
     pub mode_stats: BTreeMap<String, KeyStats>,
     // words you missed and how often; the mistakes drill practices these
     pub mistakes: BTreeMap<String, u32>,
+    // letter pair speed in text modes (baseline and weak keys)
+    pub pairs: crate::stats::PairStats,
     pub rounds: Vec<Round>,
     pub boxes: BTreeMap<String, u32>,
     // practice ms per utc day, keyed YYYY-MM-DD
@@ -146,6 +148,7 @@ impl Default for Progress {
             stats: KeyStats::new(),
             mode_stats: BTreeMap::new(),
             mistakes: BTreeMap::new(),
+            pairs: crate::stats::PairStats::new(),
             rounds: Vec::new(),
             boxes: BTreeMap::new(),
             days: BTreeMap::new(),
