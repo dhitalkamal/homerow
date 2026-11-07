@@ -47,10 +47,10 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, density: Density) {
         Paragraph::new(Line::styled(note, dim())).alignment(Alignment::Center),
         caption,
     );
-    keyboard::render(f, kbd, app, false, Some(SAMPLE));
+    keyboard::render(f, kbd, app, false, 1, Some(SAMPLE));
     if opts.hands {
         let [_, h] = Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).areas(hand_area);
-        hands::render(f, h, &keyboard::fingers_for(SAMPLE), opts.finger_colors);
+        hands::render(f, h, &keyboard::fingers_for(SAMPLE), opts.finger_colors, 1);
     }
 }
 

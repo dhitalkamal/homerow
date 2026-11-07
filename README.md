@@ -55,11 +55,13 @@ The density follows the window too. By default it is auto:
 
 - below 80 columns or 26 rows: compact (text only, no line spacing)
 - from 140 columns and 48 rows: spacious (wider text, an extra row)
+- from 170 columns and 46 rows: large (110 column text, a keyboard with
+  double width, two line keycaps and bigger hands)
 - in between: comfortable
 
 To pick one yourself, use ctrl+= and ctrl+- (they step from whatever auto is
 showing) or the size row on the settings tab, where space cycles auto,
-compact, comfortable and spacious. Your choice is saved.
+compact, comfortable, spacious and large. Your choice is saved.
 
 ctrl+= needs a terminal that reports ctrl with symbol keys (kitty, WezTerm,
 Ghostty with the kitty keyboard protocol). ctrl and the + key works too.

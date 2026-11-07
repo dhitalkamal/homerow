@@ -12,9 +12,12 @@ use ratatui::widgets::Paragraph;
 
 // the keyboard needs this many columns, narrower windows drop it
 const KEYBOARD_MIN_WIDTH: u16 = 62;
+const LARGE_KEYBOARD_MIN_WIDTH: u16 = 122;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kbd {
+    // double width keys with 2 line keycaps, for very big terminals
+    Large,
     Full,
     Compact,
     Hidden,
@@ -38,6 +41,7 @@ pub fn plan(width: u16, height: u16, density: Density, keyboard: bool, hands: bo
         Density::Compact => (3, false, 60),
         Density::Comfortable | Density::Auto => (3, true, 70),
         Density::Spacious => (4, true, 84),
+        Density::Large => (4, true, 110),
     };
     let per = if spaced { 2 } else { 1 };
     // the stats line, plus a blank above it when rows are not spaced
@@ -49,6 +53,11 @@ pub fn plan(width: u16, height: u16, density: Density, keyboard: bool, hands: bo
     let needed = rows * per + fixed + 2;
     let kbd = if !keyboard || density == Density::Compact || width < KEYBOARD_MIN_WIDTH {
         Kbd::Hidden
+    } else if density == Density::Large
+        && width >= LARGE_KEYBOARD_MIN_WIDTH
+        && height >= needed + keyboard::LARGE_HEIGHT + 2
+    {
+        Kbd::Large
     } else if height >= needed + keyboard::FULL_HEIGHT + 2 {
         Kbd::Full
     } else if height >= needed + keyboard::COMPACT_HEIGHT + 2 {
@@ -57,6 +66,7 @@ pub fn plan(width: u16, height: u16, density: Density, keyboard: bool, hands: bo
         Kbd::Hidden
     };
     let kbd_h = match kbd {
+        Kbd::Large => keyboard::LARGE_HEIGHT,
         Kbd::Full => keyboard::FULL_HEIGHT,
         Kbd::Compact => keyboard::COMPACT_HEIGHT,
         Kbd::Hidden => 0,
@@ -80,6 +90,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, now: u64, density: Density) 
     let opts = app.progress.settings;
     let p = plan(area.width, area.height, density, opts.keyboard, opts.hands);
     let kbd_h = match p.kbd {
+        Kbd::Large => keyboard::LARGE_HEIGHT,
         Kbd::Full => keyboard::FULL_HEIGHT,
         Kbd::Compact => keyboard::COMPACT_HEIGHT,
         Kbd::Hidden => 0,
@@ -105,10 +116,15 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, now: u64, density: Density) 
     );
     if kbd_h > 0 {
         let next = app.session.next_char();
-        keyboard::render(f, kbd, app, p.kbd == Kbd::Compact, next);
+        let scale = if p.kbd == Kbd::Large {
+            keyboard::SCALE_LARGE
+        } else {
+            1
+        };
+        keyboard::render(f, kbd, app, p.kbd == Kbd::Compact, scale, next);
         if p.hands {
             let lit = next.map(keyboard::fingers_for).unwrap_or_default();
-            hands::render(f, hand_area, &lit, opts.finger_colors);
+            hands::render(f, hand_area, &lit, opts.finger_colors, scale);
         }
     }
 }
@@ -285,5 +301,21 @@ mod tests {
             assert!(p.rows >= 1 && lines <= 4, "{d:?} {p:?}");
             assert_eq!(p.kbd, Kbd::Hidden);
         }
+    }
+
+    #[test]
+    fn large_density_uses_the_big_keyboard_and_wide_text() {
+        let p = on(185, 45, Large);
+        assert_eq!(
+            (p.rows, p.spaced, p.text_width, p.kbd, p.hands),
+            (4, true, 110, Kbd::Large, true)
+        );
+    }
+
+    #[test]
+    fn large_falls_back_to_the_normal_keyboard_when_short_or_narrow() {
+        assert_eq!(on(185, 28, Large).kbd, Kbd::Full);
+        let narrow = on(100, 45, Large);
+        assert_eq!((narrow.kbd, narrow.text_width), (Kbd::Full, 100));
     }
 }

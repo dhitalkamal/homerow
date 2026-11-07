@@ -71,7 +71,8 @@ pub fn toggle(item: Item, p: &mut Progress) {
                 Density::Auto => Density::Compact,
                 Density::Compact => Density::Comfortable,
                 Density::Comfortable => Density::Spacious,
-                Density::Spacious => Density::Auto,
+                Density::Spacious => Density::Large,
+                Density::Large => Density::Auto,
             }
         }
     }
@@ -107,12 +108,12 @@ mod tests {
         let mut p = Progress::default();
         assert_eq!(Item::Size.value(&p), "auto");
         let mut seen = Vec::new();
-        for _ in 0..4 {
+        for _ in 0..5 {
             toggle(Item::Size, &mut p);
             seen.push(p.density);
         }
         use Density::*;
-        assert_eq!(seen, vec![Compact, Comfortable, Spacious, Auto]);
+        assert_eq!(seen, vec![Compact, Comfortable, Spacious, Large, Auto]);
     }
 
     #[test]

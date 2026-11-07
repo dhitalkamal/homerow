@@ -126,7 +126,8 @@ fn settings_are_saved() {
 fn density_steps_and_stops_at_the_ends() {
     use Density::*;
     assert_eq!(Comfortable.step(true), Spacious);
-    assert_eq!(Spacious.step(true), Spacious);
+    assert_eq!(Spacious.step(true), Large);
+    assert_eq!(Large.step(true), Large);
     assert_eq!(Comfortable.step(false), Compact);
     assert_eq!(Compact.step(false), Compact);
 }
@@ -197,4 +198,21 @@ fn version_1_files_switch_to_auto_size() {
     assert_eq!((p.density, p.version), (Density::Auto, VERSION));
     fs::write(&path, r#"{"version":2,"density":"spacious"}"#).unwrap();
     assert_eq!(load(&path).0.density, Density::Spacious);
+}
+
+#[test]
+fn auto_picks_large_on_very_big_terminals() {
+    use Density::*;
+    assert_eq!(Auto.resolve(190, 50), Large);
+    assert_eq!(Auto.resolve(170, 46), Large);
+    assert_eq!(Auto.resolve(169, 50), Spacious);
+    assert_eq!(Auto.resolve(190, 45), Comfortable);
+}
+
+#[test]
+fn large_is_the_top_size_step() {
+    use Density::*;
+    assert_eq!(Spacious.step(true), Large);
+    assert_eq!(Large.step(true), Large);
+    assert_eq!(Large.step(false), Spacious);
 }

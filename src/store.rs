@@ -64,15 +64,22 @@ pub enum Density {
     Compact,
     Comfortable,
     Spacious,
+    // very big terminals: wide text, double size keyboard
+    Large,
 }
 
 impl Density {
     // one step bigger (true) or smaller, stopping at the ends
     pub fn step(self, bigger: bool) -> Density {
-        const ORDER: [Density; 3] = [Density::Compact, Density::Comfortable, Density::Spacious];
+        const ORDER: [Density; 4] = [
+            Density::Compact,
+            Density::Comfortable,
+            Density::Spacious,
+            Density::Large,
+        ];
         let i = ORDER.iter().position(|d| *d == self).unwrap_or(1);
         ORDER[if bigger {
-            (i + 1).min(2)
+            (i + 1).min(ORDER.len() - 1)
         } else {
             i.saturating_sub(1)
         }]
@@ -82,6 +89,7 @@ impl Density {
     pub fn resolve(self, width: u16, height: u16) -> Density {
         match self {
             Density::Auto if width < 80 || height < 26 => Density::Compact,
+            Density::Auto if width >= 170 && height >= 46 => Density::Large,
             Density::Auto if width >= 140 && height >= 48 => Density::Spacious,
             Density::Auto => Density::Comfortable,
             d => d,
@@ -93,6 +101,7 @@ impl Density {
             Density::Compact => "compact",
             Density::Comfortable => "comfortable",
             Density::Spacious => "spacious",
+            Density::Large => "large",
         }
     }
 }

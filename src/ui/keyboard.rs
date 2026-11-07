@@ -14,6 +14,11 @@ use ratatui::widgets::Paragraph;
 // compact: the same without the blank lines between rows.
 pub const FULL_HEIGHT: u16 = 11;
 pub const COMPACT_HEIGHT: u16 = 7;
+// large: keys twice as wide with a 2 column gap, keycaps 2 lines tall
+pub const LARGE_HEIGHT: u16 = 16;
+pub const SCALE_LARGE: usize = 2;
+#[cfg(test)]
+const LARGE_GAP: usize = 2;
 // every row, counting the one column gap after each key
 #[cfg(test)]
 const ROW_WIDTH: usize = 60;
@@ -131,7 +136,15 @@ pub fn fingers_for(c: char) -> Vec<usize> {
 }
 
 // next is the char to light up; the settings preview passes a sample one
-pub fn render(f: &mut Frame, area: Rect, app: &App, compact: bool, next: Option<char>) {
+// scale is 1 normally, SCALE_LARGE for the large keyboard
+pub fn render(
+    f: &mut Frame,
+    area: Rect,
+    app: &App,
+    compact: bool,
+    scale: usize,
+    next: Option<char>,
+) {
     let opts = app.progress.settings;
     let (want, needs_shift) = next.map_or((None, false), |c| {
         let (k, s) = base_key(c);
@@ -148,7 +161,8 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, compact: bool, next: Option<
         if i > 0 && !compact {
             lines.push(Line::raw(""));
         }
-        let mut spans = Vec::new();
+        let gap = if scale > 1 { "  " } else { " " };
+        let (mut spans, mut under) = (Vec::new(), Vec::new());
         for k in row {
             let color = FINGERS[k.finger].1;
             let mut style = Style::new().bg(super::KEYCAP);
@@ -173,10 +187,17 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, compact: bool, next: Option<
                     .add_modifier(Modifier::BOLD);
             }
             let label = if opts.hide_labels { "" } else { k.label };
-            spans.push(Span::styled(format!("{label:^w$}", w = k.width), style));
-            spans.push(Span::raw(" "));
+            let w = k.width * scale;
+            spans.push(Span::styled(format!("{label:^w$}"), style));
+            spans.push(Span::raw(gap));
+            // large keycaps get a second, empty line in the same colors
+            under.push(Span::styled(" ".repeat(w), style));
+            under.push(Span::raw(gap));
         }
         lines.push(Line::from(spans));
+        if scale > 1 {
+            lines.push(Line::from(under));
+        }
     }
     lines.push(Line::raw(""));
     if let Some(t) = target {
@@ -229,6 +250,14 @@ mod tests {
         assert_eq!(fingers_for('?'), vec![7, 0]);
         assert_eq!(fingers_for(' '), vec![8]);
         assert_eq!(fingers_for('\u{e9}'), Vec::<usize>::new());
+    }
+
+    #[test]
+    fn large_rows_are_twice_as_wide_and_equal() {
+        for keys in layout() {
+            let w: usize = keys.iter().map(|k| k.width * SCALE_LARGE + LARGE_GAP).sum();
+            assert_eq!(w, ROW_WIDTH * 2);
+        }
     }
 
     #[test]
