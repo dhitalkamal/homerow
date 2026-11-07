@@ -338,3 +338,16 @@ fn letter_pairs_are_saved() {
     save(&path, &p).unwrap();
     assert_eq!(load(&path).0.pairs["th"].n, 7);
 }
+
+#[test]
+fn lessons_start_on_the_home_row_and_the_level_is_saved() {
+    assert_eq!(Progress::default().lesson_keys, crate::lessons::START);
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("p.json");
+    let p = Progress {
+        lesson_keys: 12,
+        ..Progress::default()
+    };
+    save(&path, &p).unwrap();
+    assert_eq!(load(&path).0.lesson_keys, 12);
+}

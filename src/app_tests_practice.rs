@@ -15,7 +15,7 @@ fn left_and_right_switch_the_progress_view() {
     a.handle(key(cards::Key::Left), 0);
     assert_eq!(
         a.progress_view,
-        View::Mistakes,
+        View::Lessons,
         "wraps around to the last view"
     );
 }
@@ -188,4 +188,45 @@ fn weak_keys_drill_focuses_on_weak_pairs_too() {
     );
     go(&mut a, Mode::Keys);
     assert_eq!(a.focus_pairs, vec!["ng".to_string()]);
+}
+
+#[test]
+fn lessons_tab_types_only_unlocked_keys() {
+    let (mut a, _d) = app();
+    go(&mut a, Mode::Lessons);
+    let keys = crate::lessons::unlocked(a.progress.lesson_keys);
+    assert!(a.session.text.iter().all(|c| *c == ' ' || keys.contains(c)));
+}
+
+#[test]
+fn a_passing_lesson_unlocks_the_next_key() {
+    let (mut a, _d) = app();
+    go(&mut a, Mode::Lessons);
+    let end = type_all(&mut a, 1_000);
+    assert_eq!(a.progress.lesson_keys, crate::lessons::START + 1);
+    assert_eq!(a.toast(end), Some("new key unlocked: G"));
+}
+
+#[test]
+fn a_slow_lesson_unlocks_nothing_and_the_last_level_stays() {
+    let (mut a, _d) = app();
+    go(&mut a, Mode::Lessons);
+    let text: Vec<char> = a.session.text.clone();
+    let mut t = 0;
+    for ch in text {
+        if a.session.next_char() == Some(ch) {
+            a.handle(Input::Text(ch), t);
+            t += 2_000;
+        }
+    }
+    assert!(a.session.is_done());
+    assert_eq!(
+        a.progress.lesson_keys,
+        crate::lessons::START,
+        "too slow to unlock"
+    );
+    a.progress.lesson_keys = crate::lessons::ORDER.len();
+    a.handle(Input::Text('\n'), t);
+    type_all(&mut a, t + 1_000);
+    assert_eq!(a.progress.lesson_keys, crate::lessons::ORDER.len());
 }

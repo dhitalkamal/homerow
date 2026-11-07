@@ -3,6 +3,7 @@ use crate::baseline;
 use crate::cards::{self, Combo, Deck, Key};
 use crate::content::{self, CARDS};
 use crate::history;
+use crate::lessons;
 use crate::rng::Rng;
 use crate::session::Session;
 use crate::stats::weak_letters;
@@ -15,6 +16,8 @@ const BASELINE_MS: u64 = 60_000;
 const DONE_PAUSE_MS: u64 = 650;
 // how long a size change message stays in the footer
 pub const TOAST_MS: u64 = 1500;
+// items in one lesson round
+const LESSON_ITEMS: usize = 20;
 
 // keys after the terminal layer has folded them (see input.rs)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,17 +35,19 @@ pub enum Mode {
     Keys,
     Code,
     Mistakes,
+    Lessons,
     Cards,
     Progress,
     Settings,
 }
 
 impl Mode {
-    pub const ALL: [Mode; 7] = [
+    pub const ALL: [Mode; 8] = [
         Mode::Base,
         Mode::Keys,
         Mode::Code,
         Mode::Mistakes,
+        Mode::Lessons,
         Mode::Cards,
         Mode::Progress,
         Mode::Settings,
@@ -53,6 +58,7 @@ impl Mode {
             Mode::Keys => "weak keys",
             Mode::Code => "code",
             Mode::Mistakes => "mistakes",
+            Mode::Lessons => "lessons",
             Mode::Cards => "shortcuts",
             Mode::Progress => "progress",
             Mode::Settings => "settings",
@@ -64,6 +70,7 @@ impl Mode {
             Mode::Keys => history::KEYS,
             Mode::Code => history::CODE,
             Mode::Mistakes => history::MISTAKES,
+            Mode::Lessons => history::LESSONS,
             Mode::Cards => "cards",
             Mode::Progress => "progress",
             Mode::Settings => "settings",
@@ -71,7 +78,10 @@ impl Mode {
     }
     // modes where you type text and a session runs
     pub fn is_typing(self) -> bool {
-        matches!(self, Mode::Base | Mode::Keys | Mode::Code | Mode::Mistakes)
+        matches!(
+            self,
+            Mode::Base | Mode::Keys | Mode::Code | Mode::Mistakes | Mode::Lessons
+        )
     }
 }
 
@@ -244,7 +254,17 @@ impl App {
                 baseline::label(s.test, s.punctuation, s.numbers)
             }),
         };
+        let (wpm, acc) = (round.wpm, round.acc);
         self.progress.add_round(round, self.session.elapsed(now));
+        // guided lessons: a good enough round opens the next key
+        if self.mode == Mode::Lessons
+            && lessons::passes(wpm, acc)
+            && self.progress.lesson_keys < lessons::ORDER.len()
+        {
+            self.progress.lesson_keys += 1;
+            let key = lessons::newest(self.progress.lesson_keys).to_ascii_uppercase();
+            self.toast_msg = Some((format!("new key unlocked: {key}"), now + 2 * TOAST_MS));
+        }
         // letter pairs only from text: code has its own rhythm
         if matches!(self.mode, Mode::Base | Mode::Keys) {
             for (p, s) in self.session.pairs() {
@@ -290,6 +310,10 @@ impl App {
             Mode::Code => self.session = Session::new(content::code_text(&mut self.rng), None),
             Mode::Mistakes => {
                 let text = content::mistakes_text(&mut self.rng, &self.progress.mistakes, 24);
+                self.session = Session::new(&text, None);
+            }
+            Mode::Lessons => {
+                let text = lessons::text(&mut self.rng, self.progress.lesson_keys, LESSON_ITEMS);
                 self.session = Session::new(&text, None);
             }
             Mode::Cards => self.next_card(),
