@@ -2,6 +2,12 @@
 name = "homerow"
 version = "0.1.0"
 edition = "2024"
+description = "Terminal trainer for touch typing and Mac shortcuts"
+license = "MIT"
+repository = "https://github.com/dhitalkamal/homerow"
+readme = "README.md"
+keywords = ["typing", "tui", "terminal", "shortcuts", "practice"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 ratatui = "0.30.2"

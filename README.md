@@ -5,9 +5,26 @@ dependencies.
 
 ## install
 
-    cargo install --path .
+### macOS (Apple Silicon), no Rust needed
 
-That puts `homerow` in `~/.cargo/bin`. Run it with `homerow`.
+Download the latest release and put `homerow` on your PATH:
+
+    curl -L https://github.com/dhitalkamal/homerow/releases/latest/download/homerow-aarch64-apple-darwin.tar.gz | tar xz
+    xattr -d com.apple.quarantine homerow 2>/dev/null
+    mkdir -p ~/.local/bin && mv homerow ~/.local/bin/
+
+The `xattr` line removes the download quarantine flag; the binary is not signed
+by Apple, so without it macOS may refuse to open it. Make sure `~/.local/bin`
+is on your PATH, then run `homerow`.
+
+### Any platform, from source
+
+With Rust installed (https://rustup.rs):
+
+    cargo install --git https://github.com/dhitalkamal/homerow
+
+That puts `homerow` in `~/.cargo/bin`. Works on macOS, Linux and Windows
+terminals.
 
 To preview with sample data (two weeks of made-up rounds, your real progress is
 not read or changed):
@@ -153,3 +170,7 @@ after every round and card. An unreadable file is moved aside as
 
 Logic lives in pure modules with tests (stats, session, cards, content, store,
 app, input). `ui/` only draws, `main.rs` runs the event loop.
+
+## license
+
+MIT, see LICENSE.
