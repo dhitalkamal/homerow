@@ -1,5 +1,5 @@
 // app state and what each key press does to it. no drawing here, see ui/.
-use crate::cards::{self, Combo, Deck, Key, Mods};
+use crate::cards::{self, Combo, Deck, Key};
 use crate::content::{self, CARDS};
 use crate::rng::Rng;
 use crate::session::Session;
@@ -29,15 +29,17 @@ pub enum Mode {
     Code,
     Cards,
     Progress,
+    Settings,
 }
 
 impl Mode {
-    pub const ALL: [Mode; 5] = [
+    pub const ALL: [Mode; 6] = [
         Mode::Base,
         Mode::Keys,
         Mode::Code,
         Mode::Cards,
         Mode::Progress,
+        Mode::Settings,
     ];
     pub fn label(self) -> &'static str {
         match self {
@@ -46,6 +48,7 @@ impl Mode {
             Mode::Code => "code",
             Mode::Cards => "shortcuts",
             Mode::Progress => "progress",
+            Mode::Settings => "settings",
         }
     }
     fn tag(self) -> &'static str {
@@ -55,6 +58,7 @@ impl Mode {
             Mode::Code => "code",
             Mode::Cards => "cards",
             Mode::Progress => "progress",
+            Mode::Settings => "settings",
         }
     }
     // modes where you type text and a session runs
@@ -80,10 +84,9 @@ pub struct App {
     pub card: usize,
     pub card_state: CardState,
     pub deck: Option<Deck>,
-    pub fingers: bool,
-    pub heat: bool,
-    pub blind: bool,
     pub notice: Option<String>,
+    // selected row on the settings tab
+    pub settings_row: usize,
     pub quit: bool,
     // the current round is already saved, so a late tick can't save it twice
     recorded: bool,
@@ -104,10 +107,8 @@ impl App {
             card: 0,
             card_state: CardState::Ask,
             deck: None,
-            fingers: true,
-            heat: false,
-            blind: false,
             notice,
+            settings_row: 0,
             quit: false,
             recorded: false,
             toast_msg: None,
@@ -132,8 +133,9 @@ impl App {
             Input::Tab => self.switch(1),
             Input::BackTab => self.switch(Mode::ALL.len() - 1),
             _ if self.mode == Mode::Progress => {}
+            _ if self.mode == Mode::Settings => self.settings_input(input),
             _ if self.mode == Mode::Cards => self.card_input(input, now),
-            Input::Combo(c) => self.toggle(c),
+            Input::Combo(_) => {}
             Input::Text(ch) if self.session.is_done() => {
                 if ch == '\n' {
                     self.restart();
@@ -163,23 +165,6 @@ impl App {
         self.restart();
     }
 
-    // ctrl+F finger colors, ctrl+K weak key heatmap, ctrl+L hide key labels
-    fn toggle(&mut self, c: Combo) {
-        let ctrl_only = Mods {
-            ctrl: true,
-            ..Mods::default()
-        };
-        if c.mods != ctrl_only {
-            return;
-        }
-        match c.key {
-            Key::Char('f') => self.fingers = !self.fingers,
-            Key::Char('k') => self.heat = !self.heat,
-            Key::Char('l') => self.blind = !self.blind,
-            _ => {}
-        }
-    }
-
     fn record_if_done(&mut self, now: u64) {
         if !self.session.is_done() || self.recorded {
             return;
@@ -193,64 +178,6 @@ impl App {
         };
         self.progress.add_round(round, self.session.elapsed(now));
         self.save();
-    }
-
-    fn card_input(&mut self, input: Input, now: u64) {
-        let card = CARDS[self.card];
-        if let Input::Text(b @ ('[' | ']')) = input
-            && self.card_state != CardState::Judge
-        {
-            return self.cycle_deck(b == ']');
-        }
-        match (&self.card_state, input) {
-            (CardState::Judge, Input::Text(ch @ ('y' | 'n'))) => {
-                cards::grade(&mut self.progress.boxes, &card, ch == 'y');
-                self.save();
-                self.next_card();
-            }
-            (CardState::Judge | CardState::Done(_), _) => {}
-            (CardState::Ask, Input::Text(' ')) if card.recall => self.card_state = CardState::Judge,
-            (CardState::Ask, Input::Text(' ')) => {
-                cards::grade(&mut self.progress.boxes, &card, false);
-                self.save();
-                self.card_state = CardState::Retry(None);
-            }
-            _ if card.recall => {}
-            (state, _) => {
-                let first_try = *state == CardState::Ask;
-                let pressed = match input {
-                    Input::Combo(c) => c,
-                    Input::Text('\n') => cards::normalize(Mods::default(), Key::Enter),
-                    Input::Text(' ') => cards::normalize(Mods::default(), Key::Space),
-                    Input::Text(ch) => cards::normalize(Mods::default(), Key::Char(ch)),
-                    _ => return,
-                };
-                let hit = cards::parse(card.combo) == Some(pressed);
-                if first_try {
-                    cards::grade(&mut self.progress.boxes, &card, hit);
-                    self.save();
-                }
-                self.card_state = if hit {
-                    CardState::Done(now + DONE_PAUSE_MS)
-                } else {
-                    CardState::Retry(Some(pressed))
-                };
-            }
-        }
-    }
-
-    fn cycle_deck(&mut self, forward: bool) {
-        let opts: Vec<Option<Deck>> = std::iter::once(None)
-            .chain(Deck::ALL.iter().copied().map(Some))
-            .collect();
-        let i = opts.iter().position(|d| *d == self.deck).unwrap_or(0);
-        let n = opts.len();
-        self.deck = opts[if forward {
-            (i + 1) % n
-        } else {
-            (i + n - 1) % n
-        }];
-        self.next_card();
     }
 
     fn restart(&mut self) {
@@ -269,7 +196,7 @@ impl App {
             }
             Mode::Code => self.session = Session::new(content::code_text(&mut self.rng), None),
             Mode::Cards => self.next_card(),
-            Mode::Progress => {}
+            Mode::Progress | Mode::Settings => {}
         }
     }
 
@@ -309,6 +236,10 @@ fn size_step(c: Combo) -> Option<bool> {
         _ => None,
     }
 }
+
+// shortcut card keys and settings keys live in their own files
+mod card_keys;
+mod settings_keys;
 
 #[cfg(test)]
 #[path = "app_tests.rs"]

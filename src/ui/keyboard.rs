@@ -111,12 +111,28 @@ fn base_key(c: char) -> (char, bool) {
     }
 }
 
-pub fn render(f: &mut Frame, area: Rect, app: &App, compact: bool) {
-    let next = if app.session.is_done() {
-        None
-    } else {
-        app.session.next_char()
+// which fingers press this char: the key's finger, plus the pinky on the
+// other hand when it needs shift. space lights the thumbs.
+pub fn fingers_for(c: char) -> Vec<usize> {
+    let (k, shift) = base_key(c);
+    let Some(finger) = layout()
+        .iter()
+        .flatten()
+        .find(|key| key.ch == Some(k))
+        .map(|key| key.finger)
+    else {
+        return Vec::new();
     };
+    let mut out = vec![finger];
+    if shift {
+        out.push(if finger >= 4 { 0 } else { 7 });
+    }
+    out
+}
+
+// next is the char to light up; the settings preview passes a sample one
+pub fn render(f: &mut Frame, area: Rect, app: &App, compact: bool, next: Option<char>) {
+    let opts = app.progress.settings;
     let (want, needs_shift) = next.map_or((None, false), |c| {
         let (k, s) = base_key(c);
         (Some(k), s)
@@ -136,10 +152,10 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, compact: bool) {
         for k in row {
             let color = FINGERS[k.finger].1;
             let mut style = Style::new().bg(super::KEYCAP);
-            if app.fingers {
+            if opts.finger_colors {
                 style = style.fg(color);
             }
-            if let (true, Some(c)) = (app.heat, k.ch)
+            if let (true, Some(c)) = (opts.heatmap, k.ch)
                 && let Some(s) = app.progress.stats.get(&c).filter(|s| s.n >= MIN_SAMPLES)
                 && weakness(Some(s), avg) > 1.4
             {
@@ -156,7 +172,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, compact: bool) {
                     .fg(Color::Black)
                     .add_modifier(Modifier::BOLD);
             }
-            let label = if app.blind { "" } else { k.label };
+            let label = if opts.hide_labels { "" } else { k.label };
             spans.push(Span::styled(format!("{label:^w$}", w = k.width), style));
             spans.push(Span::raw(" "));
         }
@@ -202,6 +218,17 @@ mod tests {
                 assert!(k.width >= k.label.len() + 2, "{:?} is cramped", k.label);
             }
         }
+    }
+
+    #[test]
+    fn fingers_for_lights_the_key_finger_and_the_other_pinky_for_shift() {
+        assert_eq!(fingers_for('a'), vec![0]);
+        assert_eq!(fingers_for('j'), vec![4]);
+        assert_eq!(fingers_for('A'), vec![0, 7]);
+        assert_eq!(fingers_for('J'), vec![4, 0]);
+        assert_eq!(fingers_for('?'), vec![7, 0]);
+        assert_eq!(fingers_for(' '), vec![8]);
+        assert_eq!(fingers_for('\u{e9}'), Vec::<usize>::new());
     }
 
     #[test]

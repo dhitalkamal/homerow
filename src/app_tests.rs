@@ -24,6 +24,17 @@ fn type_all(a: &mut App, start: u64) -> u64 {
     }
     t
 }
+fn go(a: &mut App, mode: Mode) {
+    while a.mode != mode {
+        a.handle(Input::Tab, 0);
+    }
+}
+fn key(k: cards::Key) -> Input {
+    Input::Combo(cards::Combo {
+        mods: cards::Mods::default(),
+        key: k,
+    })
+}
 fn set_card(a: &mut App, combo: &str) {
     a.card = CARDS.iter().position(|c| c.combo == combo).unwrap();
     a.card_state = CardState::Ask;
@@ -36,16 +47,15 @@ fn tab_cycles_modes_and_backtab_goes_back() {
     assert_eq!(a.mode, Mode::Keys);
     a.handle(Input::BackTab, 0);
     a.handle(Input::BackTab, 0);
-    assert_eq!(a.mode, Mode::Progress);
+    assert_eq!(a.mode, Mode::Settings);
     a.handle(Input::BackTab, 0);
-    assert_eq!(a.mode, Mode::Cards);
+    assert_eq!(a.mode, Mode::Progress);
 }
 
 #[test]
 fn progress_tab_ignores_typing_and_card_keys() {
     let (mut a, _d) = app();
-    a.handle(Input::BackTab, 0);
-    assert_eq!(a.mode, Mode::Progress);
+    go(&mut a, Mode::Progress);
     let boxes = a.progress.boxes.clone();
     for i in [
         Input::Text('a'),
@@ -94,16 +104,6 @@ fn baseline_ends_on_tick_after_sixty_seconds() {
     a.tick(BASELINE_MS);
     assert!(a.session.is_done());
     assert_eq!(a.last_round().unwrap().mode, "base");
-}
-
-#[test]
-fn ctrl_toggles_change_the_keyboard_view() {
-    let (mut a, _d) = app();
-    a.handle(combo("ctrl+F"), 0);
-    a.handle(combo("ctrl+K"), 0);
-    a.handle(combo("ctrl+L"), 0);
-    assert!(!a.fingers && a.heat && a.blind);
-    assert_eq!(a.session.pos(), 0, "toggles never count as typing");
 }
 
 #[test]
@@ -211,4 +211,55 @@ fn density_keys_work_on_every_tab_without_grading_cards() {
     a.mode = Mode::Progress;
     a.handle(combo("ctrl+="), 0);
     assert_eq!(a.progress.density, store::Density::Comfortable);
+}
+
+#[test]
+fn settings_cursor_moves_and_stops_at_the_ends() {
+    let (mut a, _d) = app();
+    go(&mut a, Mode::Settings);
+    a.handle(key(cards::Key::Down), 0);
+    a.handle(Input::Text('j'), 0);
+    assert_eq!(a.settings_row, 2);
+    for _ in 0..5 {
+        a.handle(key(cards::Key::Up), 0);
+    }
+    assert_eq!(a.settings_row, 0);
+    for _ in 0..20 {
+        a.handle(Input::Text('j'), 0);
+    }
+    assert_eq!(a.settings_row, crate::settings::ITEMS.len() - 1);
+}
+
+#[test]
+fn space_toggles_the_keyboard_and_saves() {
+    let (mut a, dir) = app();
+    go(&mut a, Mode::Settings);
+    a.handle(Input::Text(' '), 0);
+    assert!(a.progress.settings.keyboard);
+    let (saved, _) = store::load(&dir.path().join("p.json"));
+    assert!(saved.settings.keyboard);
+    a.handle(Input::Text('\n'), 0);
+    assert!(!a.progress.settings.keyboard);
+}
+
+#[test]
+fn left_and_right_change_the_selected_setting() {
+    let (mut a, _d) = app();
+    go(&mut a, Mode::Settings);
+    for _ in 0..5 {
+        a.handle(key(cards::Key::Down), 0);
+    }
+    a.handle(key(cards::Key::Right), 0);
+    assert_eq!(a.progress.density, store::Density::Spacious);
+    a.handle(key(cards::Key::Left), 0);
+    assert_eq!(a.progress.density, store::Density::Comfortable);
+}
+
+#[test]
+fn typing_on_the_settings_tab_does_nothing() {
+    let (mut a, _d) = app();
+    go(&mut a, Mode::Settings);
+    a.handle(Input::Text('a'), 0);
+    a.tick(999_999);
+    assert!(a.progress.stats.is_empty() && a.progress.rounds.is_empty());
 }

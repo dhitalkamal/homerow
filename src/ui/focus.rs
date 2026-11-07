@@ -1,6 +1,6 @@
 // the typing screen: only the text, one live stats line and the keyboard.
 // after a round it becomes the results screen with the speed in big digits.
-use super::{bigtext, bold, centered, dim, keyboard, prompt};
+use super::{bigtext, bold, centered, dim, hands, keyboard, prompt};
 use crate::app::{App, Mode};
 use crate::stats::{MIN_SAMPLES, avg_ms, weakness};
 use crate::store::Density;
@@ -28,9 +28,12 @@ pub struct Plan {
     pub spaced: bool,
     pub text_width: u16,
     pub kbd: Kbd,
+    // finger bars under the keyboard
+    pub hands: bool,
 }
 
-pub fn plan(width: u16, height: u16, density: Density) -> Plan {
+// keyboard and hands come from settings; they only show when there is room
+pub fn plan(width: u16, height: u16, density: Density, keyboard: bool, hands: bool) -> Plan {
     let (mut rows, spaced, w) = match density {
         Density::Compact => (3, false, 60),
         Density::Comfortable => (3, true, 70),
@@ -44,7 +47,7 @@ pub fn plan(width: u16, height: u16, density: Density) -> Plan {
     }
     // text block, stats, and a 2 line gap above the keyboard
     let needed = rows * per + fixed + 2;
-    let kbd = if density == Density::Compact || width < KEYBOARD_MIN_WIDTH {
+    let kbd = if !keyboard || density == Density::Compact || width < KEYBOARD_MIN_WIDTH {
         Kbd::Hidden
     } else if height >= needed + keyboard::FULL_HEIGHT + 2 {
         Kbd::Full
@@ -53,11 +56,19 @@ pub fn plan(width: u16, height: u16, density: Density) -> Plan {
     } else {
         Kbd::Hidden
     };
+    let kbd_h = match kbd {
+        Kbd::Full => keyboard::FULL_HEIGHT,
+        Kbd::Compact => keyboard::COMPACT_HEIGHT,
+        Kbd::Hidden => 0,
+    };
+    // hands go first when space runs out, the keyboard is more useful
+    let hands = hands && kbd != Kbd::Hidden && height >= needed + kbd_h + hands::HEIGHT + 1 + 2;
     Plan {
         rows,
         spaced,
         text_width: w.min(width),
         kbd,
+        hands,
     }
 }
 
@@ -65,20 +76,30 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, now: u64) {
     if app.session.is_done() {
         return results(f, area, app);
     }
-    let p = plan(area.width, area.height, app.progress.density);
+    let opts = app.progress.settings;
+    let p = plan(
+        area.width,
+        area.height,
+        app.progress.density,
+        opts.keyboard,
+        opts.hands,
+    );
     let kbd_h = match p.kbd {
         Kbd::Full => keyboard::FULL_HEIGHT,
         Kbd::Compact => keyboard::COMPACT_HEIGHT,
         Kbd::Hidden => 0,
     };
     let text_h = p.rows * if p.spaced { 2 } else { 1 };
-    let [_, text, _, stats, _, kbd, _] = Layout::vertical([
+    let hands_h = if p.hands { hands::HEIGHT } else { 0 };
+    let [_, text, _, stats, _, kbd, _, hand_area, _] = Layout::vertical([
         Constraint::Fill(1),
         Constraint::Length(text_h),
         Constraint::Length(if p.spaced { 0 } else { 1 }),
         Constraint::Length(1),
         Constraint::Length(if kbd_h > 0 { 2 } else { 0 }),
         Constraint::Length(kbd_h),
+        Constraint::Length(if p.hands { 1 } else { 0 }),
+        Constraint::Length(hands_h),
         Constraint::Fill(1),
     ])
     .areas(area);
@@ -88,7 +109,12 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, now: u64) {
         stats,
     );
     if kbd_h > 0 {
-        keyboard::render(f, kbd, app, p.kbd == Kbd::Compact);
+        let next = app.session.next_char();
+        keyboard::render(f, kbd, app, p.kbd == Kbd::Compact, next);
+        if p.hands {
+            let lit = next.map(keyboard::fingers_for).unwrap_or_default();
+            hands::render(f, hand_area, &lit, opts.finger_colors);
+        }
     }
 }
 
@@ -198,49 +224,68 @@ mod tests {
     use super::*;
     use Density::*;
 
+    fn on(w: u16, h: u16, d: Density) -> Plan {
+        plan(w, h, d, true, true)
+    }
+
     #[test]
-    fn comfortable_steps_the_keyboard_down_as_space_shrinks() {
-        assert_eq!(plan(100, 33, Comfortable).kbd, Kbd::Full);
-        assert_eq!(plan(100, 20, Comfortable).kbd, Kbd::Compact);
-        assert_eq!(plan(100, 13, Comfortable).kbd, Kbd::Hidden);
-        let p = plan(100, 33, Comfortable);
-        assert_eq!((p.rows, p.spaced, p.text_width), (3, true, 70));
+    fn keyboard_off_means_text_only() {
+        let p = plan(120, 50, Comfortable, false, true);
+        assert_eq!((p.kbd, p.hands), (Kbd::Hidden, false));
+    }
+
+    #[test]
+    fn comfortable_steps_down_hands_then_keyboard_as_space_shrinks() {
+        let big = on(100, 40, Comfortable);
+        assert_eq!((big.kbd, big.hands), (Kbd::Full, true));
+        let mid = on(100, 26, Comfortable);
+        assert_eq!((mid.kbd, mid.hands), (Kbd::Full, false));
+        assert_eq!(on(100, 20, Comfortable).kbd, Kbd::Compact);
+        assert_eq!(on(100, 13, Comfortable).kbd, Kbd::Hidden);
+        assert_eq!((big.rows, big.spaced, big.text_width), (3, true, 70));
+    }
+
+    #[test]
+    fn hands_switch_off_keeps_the_keyboard() {
+        let p = plan(100, 40, Comfortable, true, false);
+        assert_eq!((p.kbd, p.hands), (Kbd::Full, false));
     }
 
     #[test]
     fn narrow_window_hides_the_keyboard_and_shrinks_the_text() {
-        let p = plan(50, 40, Comfortable);
-        assert_eq!((p.kbd, p.text_width), (Kbd::Hidden, 50));
+        let p = on(50, 40, Comfortable);
+        assert_eq!((p.kbd, p.hands, p.text_width), (Kbd::Hidden, false, 50));
     }
 
     #[test]
     fn compact_density_is_text_only_and_tight() {
-        let p = plan(100, 40, Compact);
+        let p = on(100, 40, Compact);
         assert_eq!(
             p,
             Plan {
                 rows: 3,
                 spaced: false,
                 text_width: 60,
-                kbd: Kbd::Hidden
+                kbd: Kbd::Hidden,
+                hands: false
             }
         );
     }
 
     #[test]
     fn spacious_density_is_wider_with_more_rows() {
-        let p = plan(120, 40, Spacious);
+        let p = on(120, 45, Spacious);
         assert_eq!(
             (p.rows, p.spaced, p.text_width, p.kbd),
             (4, true, 84, Kbd::Full)
         );
-        assert_eq!(plan(70, 40, Spacious).text_width, 70);
+        assert_eq!(on(70, 40, Spacious).text_width, 70);
     }
 
     #[test]
     fn tiny_area_still_fits_at_least_one_row() {
         for d in [Compact, Comfortable, Spacious] {
-            let p = plan(20, 4, d);
+            let p = on(20, 4, d);
             let lines = p.rows * if p.spaced { 2 } else { 1 } + 1;
             assert!(p.rows >= 1 && lines <= 4, "{d:?} {p:?}");
             assert_eq!(p.kbd, Kbd::Hidden);

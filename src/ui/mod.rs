@@ -4,8 +4,10 @@ pub mod bigtext;
 pub mod card;
 pub mod dashboard;
 pub mod focus;
+pub mod hands;
 pub mod keyboard;
 pub mod prompt;
+pub mod settings;
 
 use crate::app::{App, Mode};
 use ratatui::Frame;
@@ -38,6 +40,7 @@ pub fn draw(f: &mut Frame, app: &App, now: u64) {
     match app.mode {
         Mode::Cards => card::render(f, body, app),
         Mode::Progress => dashboard::render(f, body, app, now),
+        Mode::Settings => settings::render(f, body, app),
         _ => focus::render(f, body, app, now),
     }
     draw_footer(f, footer, app, now);
@@ -86,15 +89,15 @@ fn draw_footer(f: &mut Frame, area: Rect, app: &App, now: u64) {
             ("[ ]", "deck"),
         ],
         Mode::Progress => &[("tab", "mode"), ("esc", "quit"), ("ctrl+-/=", "size")],
-        _ if app.session.is_done() => &[("return", "next round"), ("tab", "mode"), ("esc", "quit")],
-        _ => &[
+        Mode::Settings => &[
+            ("up/down", "move"),
+            ("space", "change"),
+            ("left/right", "set"),
             ("tab", "mode"),
             ("esc", "quit"),
-            ("ctrl+f", "fingers"),
-            ("ctrl+k", "heatmap"),
-            ("ctrl+l", "labels"),
-            ("ctrl+-/=", "size"),
         ],
+        _ if app.session.is_done() => &[("return", "next round"), ("tab", "mode"), ("esc", "quit")],
+        _ => &[("tab", "mode"), ("esc", "quit"), ("ctrl+-/=", "size")],
     };
     // an error beats a size toast, a toast beats the key hints
     let line = match (&app.notice, app.toast(now)) {

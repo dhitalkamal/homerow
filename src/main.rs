@@ -5,6 +5,7 @@ mod demo;
 mod input;
 mod rng;
 mod session;
+mod settings;
 mod stats;
 mod store;
 mod ui;

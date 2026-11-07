@@ -25,8 +25,14 @@ Tab cycles through them, Esc quits.
 - shortcuts: flash cards for text editing, macOS, Finder, zsh and IntelliJ.
 - progress: dashboard with latest and best speed, accuracy, day streak, a
   speed trend chart, weak keys and how far along each shortcut deck is.
+- settings: switch the on-screen keyboard and hands on or off, plus finger
+  colors, weak key heatmap, hidden key labels and size. Up/down (or j/k) move,
+  space or return changes a row, left/right set it. A live preview shows the
+  result. Everything here is saved.
 
-While typing the screen only shows the text, one stats line and the keyboard.
+While typing the screen only shows the text and one stats line. The keyboard
+is off by default; turn it on in settings. With it on, two hands under the
+keyboard light the finger for the next key (and the other pinky for shift).
 Results appear in big digits after each round. A wrong key turns red and the
 cursor waits until you press the right one.
 
@@ -40,7 +46,8 @@ and the line under the keyboard names the finger.
 Zoom is your terminal's job: in kitty, cmd+= and cmd+- change the font size.
 homerow redraws to fit whatever size it gets:
 
-- plenty of room: full keyboard
+- plenty of room: full keyboard and hands
+- a bit less: full keyboard, hands hidden
 - medium: compact keyboard (no blank lines between key rows)
 - small or narrow: text and stats only
 
@@ -52,9 +59,6 @@ On top of that, ctrl+= and ctrl+- change the density, saved between runs:
 
 ctrl+= needs a terminal that reports ctrl with symbol keys (kitty, WezTerm,
 Ghostty with the kitty keyboard protocol). ctrl and the + key works too.
-
-Typing keys: ctrl+F finger colors, ctrl+K weak key heatmap, ctrl+L hide key
-labels (forces you to stop looking).
 
 Shortcut keys: press the real combo. Space shows the answer (counts as a miss).
 `[` and `]` change deck. A card is learned after 3 right answers in a row.

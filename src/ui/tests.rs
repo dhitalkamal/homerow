@@ -25,6 +25,12 @@ fn app() -> (App, tempfile::TempDir) {
     (App::new(dir.path().join("p.json"), 5), dir)
 }
 
+fn with_keyboard() -> (App, tempfile::TempDir) {
+    let (mut a, d) = app();
+    a.progress.settings.keyboard = true;
+    (a, d)
+}
+
 fn first_word(a: &App) -> String {
     a.session.text.iter().take_while(|c| **c != ' ').collect()
 }
@@ -39,11 +45,24 @@ fn go(a: &mut App, mode: Mode) {
 fn typing_screen_is_focused() {
     let (a, _d) = app();
     let s = screen(&a, 100, 40);
-    for want in ["baseline", "shortcuts", "progress", "wpm", "shift", "tab"] {
+    for want in [
+        "baseline",
+        "shortcuts",
+        "progress",
+        "settings",
+        "wpm",
+        "tab",
+    ] {
         assert!(s.contains(want), "missing {want:?} in\n{s}");
     }
     assert!(s.contains(&first_word(&a)));
-    for clutter in ["Speed trend", "Slowest", "practiced today", "L middle"] {
+    for clutter in [
+        "Speed trend",
+        "Slowest",
+        "practiced today",
+        "shift",
+        "left hand",
+    ] {
         assert!(
             !s.contains(clutter),
             "{clutter:?} belongs on the progress tab\n{s}"
@@ -84,7 +103,7 @@ fn stats_line_has_a_blank_line_above_it() {
 
 #[test]
 fn next_key_hint_names_the_finger() {
-    let (a, _d) = app();
+    let (a, _d) = with_keyboard();
     let s = screen(&a, 100, 40);
     let finger = ["pinky", "ring", "middle", "index", "thumb"]
         .iter()
@@ -174,7 +193,34 @@ fn size_change_shows_in_the_footer() {
 
 #[test]
 fn medium_height_gets_the_compact_keyboard() {
-    let (a, _d) = app();
+    let (a, _d) = with_keyboard();
     let s = screen(&a, 100, 27);
     assert!(s.contains("shift") && s.contains("next"), "{s}");
+}
+
+#[test]
+fn keyboard_setting_shows_the_keyboard_and_hands() {
+    let (a, _d) = with_keyboard();
+    let s = screen(&a, 100, 48);
+    for want in ["shift", "next", "left hand", "right hand"] {
+        assert!(s.contains(want), "missing {want:?} in\n{s}");
+    }
+}
+
+#[test]
+fn settings_tab_lists_switches_with_a_live_preview() {
+    let (mut a, _d) = app();
+    go(&mut a, Mode::Settings);
+    let s = screen(&a, 100, 48);
+    for want in [
+        "keyboard",
+        "off",
+        "hands",
+        "size",
+        "comfortable",
+        "shift",
+        "left hand",
+    ] {
+        assert!(s.contains(want), "missing {want:?} in\n{s}");
+    }
 }
