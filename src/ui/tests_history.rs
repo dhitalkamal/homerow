@@ -316,3 +316,17 @@ fn results_footer_offers_the_share_card() {
     let s = screen(&a, 110, 40);
     assert!(s.contains("copy share card"), "{s}");
 }
+
+#[test]
+fn sequence_cards_show_how_far_you_are() {
+    let (mut a, _d) = app();
+    a.mode = Mode::Cards;
+    a.card = crate::content::CARDS
+        .iter()
+        .position(|c| c.combo == "ctrl+b c")
+        .unwrap();
+    a.card_state = crate::app::CardState::Ask;
+    a.handle(Input::Combo(crate::cards::parse("ctrl+b").unwrap()), NOW);
+    let s = screen(&a, 100, 40);
+    assert!(s.contains("1 of 2 keys"), "{s}");
+}
