@@ -1,7 +1,9 @@
 mod app;
 mod baseline;
+mod brand;
 mod cards;
 mod cli;
+mod clipboard;
 mod content;
 mod daily;
 mod demo;
@@ -11,6 +13,7 @@ mod lessons;
 mod rng;
 mod session;
 mod settings;
+mod share;
 mod stats;
 mod store;
 mod ui;
@@ -164,6 +167,13 @@ fn run(term: &mut ratatui::DefaultTerminal, app: &mut app::App) -> io::Result<()
             && let Some(i) = input::map(k)
         {
             app.handle(i, now_ms());
+            if let Some(card) = app.pending_copy.take() {
+                let msg = match clipboard::copy(&card) {
+                    clipboard::Copied::Tool(_) => "copied share card",
+                    clipboard::Copied::Terminal => "share card sent to the terminal clipboard",
+                };
+                app.notify(msg, now_ms());
+            }
         }
     }
     Ok(())

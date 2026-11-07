@@ -243,3 +243,29 @@ fn daily_tab_types_the_days_words_and_files_rounds_under_the_date() {
     assert_eq!(a.last_round().unwrap().mode, "daily");
     assert_eq!(a.last_round().unwrap().test.as_deref(), Some("2026-11-07"));
 }
+
+#[test]
+fn c_on_a_results_screen_prepares_the_share_card() {
+    let (mut a, _d) = app();
+    go(&mut a, Mode::Code);
+    let end = type_all(&mut a, 1_000);
+    a.handle(Input::Text('c'), end);
+    let card = a.pending_copy.take().expect("card prepared");
+    let wpm = a.last_round().unwrap().wpm;
+    assert!(card.contains(&format!("code: {wpm} wpm")), "{card}");
+}
+
+#[test]
+fn c_while_typing_is_just_a_letter() {
+    let (mut a, _d) = app();
+    go(&mut a, Mode::Base);
+    a.handle(Input::Text('c'), 0);
+    assert!(a.pending_copy.is_none());
+}
+
+#[test]
+fn notify_shows_a_footer_message() {
+    let (mut a, _d) = app();
+    a.notify("copied share card", 1_000);
+    assert_eq!(a.toast(1_000), Some("copied share card"));
+}

@@ -113,6 +113,8 @@ pub struct App {
     pub card_state: CardState,
     pub deck: Option<Deck>,
     pub notice: Option<String>,
+    // a share card waiting to be copied by the main loop
+    pub pending_copy: Option<String>,
     // selected row on the settings tab
     pub settings_row: usize,
     // which mode the progress tab shows
@@ -152,6 +154,7 @@ impl App {
             card_state: CardState::Ask,
             deck: None,
             notice,
+            pending_copy: None,
             settings_row: 0,
             progress_view: history::View::All,
             show_history: false,
@@ -207,6 +210,11 @@ impl App {
             Input::Text(ch) if self.session.is_done() => {
                 if ch == '\n' {
                     self.restart();
+                } else if ch == 'c' {
+                    // share card: main.rs does the copying, so this stays testable
+                    let goal = self.progress.settings.goal_min;
+                    let streak = crate::store::goal_streak(&self.progress.days, now, goal);
+                    self.pending_copy = self.last_round().map(|r| crate::share::card(r, streak));
                 }
             }
             Input::Text(ch) => {
@@ -259,6 +267,11 @@ impl App {
                 self.path.display()
             ));
         }
+    }
+
+    // a short footer message from outside the app (like the copy result)
+    pub fn notify(&mut self, msg: &str, now: u64) {
+        self.toast_msg = Some((msg.to_string(), now + 2 * TOAST_MS));
     }
 
     pub fn toast(&self, now: u64) -> Option<&str> {
