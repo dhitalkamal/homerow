@@ -127,6 +127,16 @@ pub fn ago(now: u64, then: u64) -> String {
     }
 }
 
+// the test a round counts under; baseline rounds from before test options
+// all ran the plain 60 second test
+pub fn test_of(r: &Round) -> String {
+    match (&r.test, r.mode.as_str()) {
+        (Some(t), _) => t.clone(),
+        (None, BASE) => "60s".to_string(),
+        (None, _) => String::new(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -137,6 +147,7 @@ mod tests {
             wpm,
             acc: 95,
             at_ms: at,
+            test: None,
         }
     }
 

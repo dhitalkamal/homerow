@@ -1,4 +1,5 @@
 mod app;
+mod baseline;
 mod cards;
 mod cli;
 mod content;

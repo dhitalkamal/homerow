@@ -60,7 +60,10 @@ characters a US keyboard cannot type are skipped.
 
 Tab cycles through them, Esc quits.
 
-- baseline: random common words for 60 seconds. Use it to track your WPM.
+- baseline: a typing test on common words. On the settings tab pick the length
+  (15, 30, 60 or 120 seconds, or 25, 50 or 100 words) and switch on punctuation
+  (sentences with capitals, commas and full stops) or numbers. Each round is
+  filed under its test, like "30s +punct", and only compared with the same test.
 - weak keys: words built around your 3 slowest or most missed letters.
 - code: short real snippets (Python, Go, Rust, TypeScript, SQL, shell, git).
   Indentation after Return is typed for you.

@@ -115,11 +115,6 @@ pub fn words() -> Vec<&'static str> {
     WORDS.split(' ').collect()
 }
 
-pub fn baseline_text(rng: &mut Rng, n: usize) -> String {
-    let w = words();
-    (0..n).map(|_| *rng.pick(&w)).collect::<Vec<_>>().join(" ")
-}
-
 // words weighted by how many focus letters they contain
 pub fn weak_text(rng: &mut Rng, focus: &[char], n: usize) -> String {
     let mut pool = Vec::new();
@@ -213,14 +208,6 @@ mod tests {
     }
 
     #[test]
-    fn baseline_has_n_words_from_the_list() {
-        let t = baseline_text(&mut Rng::new(1), 40);
-        let w = words();
-        assert_eq!(t.split(' ').count(), 40);
-        assert!(t.split(' ').all(|x| w.contains(&x)));
-    }
-
-    #[test]
     fn weak_text_leans_on_the_focus_letters() {
         let focus = ['q', 'z', 'x'];
         let hits = |t: &str| {
@@ -229,7 +216,12 @@ mod tests {
                 .count()
         };
         let weak = weak_text(&mut Rng::new(9), &focus, 200);
-        let base = baseline_text(&mut Rng::new(9), 200);
+        let base = crate::baseline::text(
+            &mut Rng::new(9),
+            crate::baseline::Length::Words(200),
+            false,
+            false,
+        );
         assert_eq!(weak.split(' ').count(), 200);
         assert!(
             hits(&weak) > hits(&base) * 3,

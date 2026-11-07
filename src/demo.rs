@@ -23,6 +23,7 @@ pub fn progress(now: u64) -> Progress {
                 wpm,
                 acc: 93 + rng.below(7) as u32,
                 at_ms: now - d * DAY - (3 - i) * HOUR,
+                test: None,
             };
             // 3 rounds of 6 minutes: each demo day meets the default 15 minute goal
             p.add_round(round, 6 * 60_000);

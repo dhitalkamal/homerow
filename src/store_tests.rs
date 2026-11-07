@@ -38,6 +38,7 @@ fn round(wpm: u32) -> Round {
         wpm,
         acc: 97,
         at_ms: 1_762_500_000_000,
+        test: None,
     }
 }
 
@@ -309,4 +310,13 @@ fn daily_goal_defaults_to_15_minutes_and_is_saved() {
     p.settings.goal_min = 30;
     save(&path, &p).unwrap();
     assert_eq!(load(&path).0.settings.goal_min, 30);
+}
+
+#[test]
+fn test_options_default_to_a_plain_minute_and_old_rounds_have_no_label() {
+    let s = Settings::default();
+    assert_eq!(s.test, crate::baseline::Length::Time(60));
+    assert!(!s.punctuation && !s.numbers);
+    let r: Round = serde_json::from_str(r#"{"mode":"base","wpm":40,"acc":95,"at_ms":1}"#).unwrap();
+    assert_eq!(r.test, None);
 }
