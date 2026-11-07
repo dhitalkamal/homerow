@@ -6,7 +6,7 @@ use crate::cards::{Deck, known};
 use crate::content::CARDS;
 use crate::history::{self, BASE, CODE, KEYS, MISTAKES, View};
 use crate::stats::{MIN_SAMPLES, avg_ms, weakness};
-use crate::store::{day_key, streak};
+use crate::store::{day_key, goal_streak};
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Color, Style};
@@ -108,6 +108,7 @@ fn draw_tiles(f: &mut Frame, area: Rect, app: &App, view: View, c: history::Chan
     let recent: Vec<u32> = rs.iter().rev().take(10).map(|r| r.acc).collect();
     let acc = recent.iter().sum::<u32>() / recent.len().max(1) as u32;
     let today = app.progress.days.get(&day_key(now)).copied().unwrap_or(0) / 60_000;
+    let goal = app.progress.settings.goal_min as u64;
     let sign = if c.delta() >= 0 { "+" } else { "" };
     let tiles = [
         (format!("{} wpm", c.now), "now (last 3 rounds)".to_string()),
@@ -118,8 +119,14 @@ fn draw_tiles(f: &mut Frame, area: Rect, app: &App, view: View, c: history::Chan
         (c.best.to_string(), "best wpm".to_string()),
         (format!("{acc}%"), format!("accuracy, {} rounds", c.rounds)),
         (
-            streak(&app.progress.days, now).to_string(),
-            format!("day streak, {today}m today"),
+            match goal {
+                0 => format!("{today} min today"),
+                g => format!("{today}/{g} min today"),
+            },
+            format!(
+                "{} day streak",
+                goal_streak(&app.progress.days, now, goal as u32)
+            ),
         ),
     ];
     let areas = Layout::horizontal([Constraint::Fill(1); 5])

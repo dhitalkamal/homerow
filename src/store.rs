@@ -54,6 +54,8 @@ pub struct Settings {
     pub big_text: bool,
     // kitty text sizing scale for the typing text, 1 is normal
     pub zoom: u8,
+    // minutes of practice a day that count toward the streak, 0 is off
+    pub goal_min: u32,
 }
 
 impl Default for Settings {
@@ -66,6 +68,7 @@ impl Default for Settings {
             hide_labels: false,
             big_text: false,
             zoom: 1,
+            goal_min: 15,
         }
     }
 }
@@ -257,9 +260,17 @@ pub fn day_key(ms: u64) -> String {
 
 // days in a row with practice, ending today. a streak that ended yesterday
 // still counts until today is over.
+#[cfg(test)]
 pub fn streak(days: &BTreeMap<String, u64>, now_ms: u64) -> u32 {
+    goal_streak(days, now_ms, 0)
+}
+
+// like streak, but a day only counts once it reaches the daily goal (in
+// minutes); a goal of 0 counts any practice
+pub fn goal_streak(days: &BTreeMap<String, u64>, now_ms: u64, goal_min: u32) -> u32 {
+    let need = (goal_min as u64 * 60_000).max(1);
     const DAY: u64 = 86_400_000;
-    let did = |ms: u64| days.get(&day_key(ms)).is_some_and(|t| *t > 0);
+    let did = |ms: u64| days.get(&day_key(ms)).is_some_and(|t| *t >= need);
     // start from yesterday when today has nothing yet
     let mut at = if did(now_ms) {
         now_ms

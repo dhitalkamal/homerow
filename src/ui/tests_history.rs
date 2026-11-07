@@ -40,3 +40,37 @@ fn history_view_lists_rounds_newest_first() {
     assert!(newer < older, "newest first\n{s}");
     assert!(s.contains("31") && s.contains("94%"), "{s}");
 }
+
+#[test]
+fn progress_shows_todays_minutes_against_the_goal() {
+    let (mut a, _d) = app();
+    a.progress.add_round(
+        Round {
+            mode: "base".into(),
+            wpm: 30,
+            acc: 95,
+            at_ms: NOW,
+        },
+        12 * 60_000,
+    );
+    go(&mut a, Mode::Progress);
+    let s = screen(&a, 120, 40);
+    assert!(s.contains("12/15"), "{s}");
+}
+
+#[test]
+fn results_screen_shows_the_daily_goal() {
+    let (mut a, _d) = app();
+    go(&mut a, Mode::Code);
+    let text: Vec<char> = a.session.text.clone();
+    let mut t = NOW - 60_000;
+    for ch in text {
+        if a.session.next_char() == Some(ch) {
+            a.handle(Input::Text(ch), t);
+            t += 150;
+        }
+    }
+    assert!(a.session.is_done());
+    let s = screen(&a, 100, 40);
+    assert!(s.contains("/15 min today"), "{s}");
+}

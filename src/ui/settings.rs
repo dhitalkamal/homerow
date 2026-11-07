@@ -72,9 +72,9 @@ fn row(app: &App, i: usize, item: Item, density: Density) -> Line<'static> {
     } else if item == Item::Size && app.progress.density == Density::Auto {
         format!("auto ({})", density.label())
     } else {
-        value.to_string()
+        value.clone()
     };
-    let value_style = match value {
+    let value_style = match value.as_str() {
         "on" => bold().fg(ACCENT),
         "off" => dim(),
         _ => bold(),

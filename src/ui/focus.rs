@@ -158,6 +158,26 @@ fn results(f: &mut Frame, area: Rect, app: &App) {
         None => ("first round in this mode".to_string(), dim()),
     };
     lines.push(Line::styled(delta, style));
+    // today's practice against the daily goal, counted on the round's own day
+    let goal = app.progress.settings.goal_min as u64;
+    if goal > 0 {
+        let today = app
+            .progress
+            .days
+            .get(&crate::store::day_key(r.at_ms))
+            .copied()
+            .unwrap_or(0)
+            / 60_000;
+        let (note, style) = if today >= goal {
+            (
+                format!("{today}/{goal} min today, goal met"),
+                Style::new().fg(super::GOOD),
+            )
+        } else {
+            (format!("{today}/{goal} min today"), dim())
+        };
+        lines.push(Line::styled(note, style));
+    }
     lines.push(Line::raw(""));
     let slow = slowest(app, 3);
     if !slow.is_empty() {
