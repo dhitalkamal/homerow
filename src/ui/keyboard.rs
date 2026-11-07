@@ -1,6 +1,7 @@
-// mac us keyboard drawn as keycaps. each key has a colored edge for the finger
-// that should press it. the next key fills with that finger's color, and
-// capitals light the shift on the other hand.
+// mac us keyboard drawn as keycaps. the letter on each key is tinted by the
+// finger that should press it, the next key fills with that finger's color,
+// and capitals light the shift on the other hand. one hint line underneath
+// names the finger in words.
 use crate::app::App;
 use crate::stats::{MIN_SAMPLES, avg_ms, weakness};
 use ratatui::Frame;
@@ -9,25 +10,26 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
-// 5 rows of keycap + edge, a blank line, then the legend
-pub const HEIGHT: u16 = 12;
+// 5 key rows with a blank line between, a blank line, then the hint
+pub const HEIGHT: u16 = 11;
+// every row, counting the one column gap after each key
+#[cfg(test)]
+const ROW_WIDTH: usize = 60;
 
 // finger index: 0 left pinky .. 3 left index, 4 right index .. 7 right pinky, 8 thumbs.
-// ansi colors, so your terminal theme decides the exact shades.
+// fixed hues spread around the color wheel. ansi colors were tried first, but
+// many themes draw "bright" ansi the same as normal, so fingers shared colors.
 pub const FINGERS: [(&str, Color); 9] = [
-    ("L pinky", Color::Magenta),
-    ("L ring", Color::Blue),
-    ("L middle", Color::Cyan),
-    ("L index", Color::Green),
-    ("R index", Color::Yellow),
-    ("R middle", Color::Red),
-    ("R ring", Color::LightMagenta),
-    ("R pinky", Color::LightBlue),
-    ("thumbs", Color::Gray),
+    ("left pinky", Color::Rgb(199, 146, 234)),
+    ("left ring", Color::Rgb(130, 170, 255)),
+    ("left middle", Color::Rgb(137, 221, 255)),
+    ("left index", Color::Rgb(195, 232, 141)),
+    ("right index", Color::Rgb(255, 203, 107)),
+    ("right middle", Color::Rgb(247, 140, 108)),
+    ("right ring", Color::Rgb(255, 83, 112)),
+    ("right pinky", Color::Rgb(78, 201, 176)),
+    ("thumbs", Color::Rgb(160, 168, 196)),
 ];
-
-const EDGE: &str = "\u{2594}";
-const SWATCH: &str = "\u{2588}\u{2588}";
 
 struct K {
     label: &'static str,
@@ -63,33 +65,32 @@ fn row(chars: &'static str, fin: &str) -> Vec<K> {
         .collect()
 }
 
-// every row is 58 columns wide including the gap after each key
 fn layout() -> Vec<Vec<K>> {
     let shift = |left: bool| K {
         label: "shift",
         ch: None,
         finger: if left { 0 } else { 7 },
-        width: 8,
+        width: 9,
         shift_side: Some(left),
     };
     let mut r0 = row("`1234567890-=", "aabcddeefghhh");
-    r0.push(key("del", None, 7, 5));
-    let mut r1 = vec![key("tab", None, 0, 5)];
+    r0.push(key("del", None, 7, 7));
+    let mut r1 = vec![key("tab", None, 0, 7)];
     r1.extend(row("qwertyuiop[]\\", "abcddeefghhhh"));
     let mut r2 = vec![key("caps", None, 0, 6)];
     r2.extend(row("asdfghjkl;'", "abcddeefghh"));
-    r2.push(key("return", Some('\n'), 7, 6));
+    r2.push(key("return", Some('\n'), 7, 8));
     let mut r3 = vec![shift(true)];
     r3.extend(row("zxcvbnm,./", "abcddeefgh"));
     r3.push(shift(false));
     let r4 = vec![
         key("fn", None, 0, 4),
-        key("ctrl", None, 0, 4),
-        key("opt", None, 0, 4),
-        key("cmd", None, 8, 4),
-        key("", Some(' '), 8, 27),
-        key("cmd", None, 8, 4),
-        key("opt", None, 7, 4),
+        key("ctrl", None, 0, 6),
+        key("opt", None, 0, 5),
+        key("cmd", None, 8, 5),
+        key("", Some(' '), 8, 23),
+        key("cmd", None, 8, 5),
+        key("opt", None, 7, 5),
     ];
     vec![r0, r1, r2, r3, r4]
 }
@@ -119,62 +120,97 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
         (Some(k), s)
     });
     let keys = layout();
-    let want_finger = keys
+    let target = keys
         .iter()
         .flatten()
-        .find(|k| k.ch.is_some() && k.ch == want)
-        .map(|k| k.finger);
+        .find(|k| k.ch.is_some() && k.ch == want);
     let avg = avg_ms(&app.progress.stats);
     let mut lines = Vec::new();
-    for keys in &keys {
-        let (mut caps, mut edges) = (Vec::new(), Vec::new());
-        for k in keys {
-            let finger = FINGERS[k.finger].1;
-            let mut edge = if app.fingers { finger } else { super::KEYCAP };
-            let mut cap = Style::new().bg(super::KEYCAP);
-            // weak keys: red label, very weak keys get a red edge too
+    for (i, row) in keys.iter().enumerate() {
+        if i > 0 {
+            lines.push(Line::raw(""));
+        }
+        let mut spans = Vec::new();
+        for k in row {
+            let color = FINGERS[k.finger].1;
+            let mut style = Style::new().bg(super::KEYCAP);
+            if app.fingers {
+                style = style.fg(color);
+            }
             if let (true, Some(c)) = (app.heat, k.ch)
                 && let Some(s) = app.progress.stats.get(&c).filter(|s| s.n >= MIN_SAMPLES)
+                && weakness(Some(s), avg) > 1.4
             {
-                let w = weakness(Some(s), avg);
-                if w > 1.4 {
-                    cap = cap.fg(super::BAD).add_modifier(Modifier::BOLD);
-                }
-                if w > 2.2 {
-                    edge = super::BAD;
-                }
+                style = style
+                    .fg(super::BAD)
+                    .add_modifier(Modifier::BOLD | Modifier::UNDERLINED);
             }
             // shift goes on the opposite hand from the key it modifies
             let lit_shift =
-                needs_shift && k.shift_side == Some(want_finger.is_some_and(|f| f >= 4));
-            if (k.ch.is_some() && k.ch == want) || lit_shift {
-                cap = Style::new()
-                    .bg(finger)
+                needs_shift && k.shift_side == Some(target.is_some_and(|t| t.finger >= 4));
+            if target.is_some_and(|t| std::ptr::eq(t, k)) || lit_shift {
+                style = Style::new()
+                    .bg(color)
                     .fg(Color::Black)
                     .add_modifier(Modifier::BOLD);
-                edge = finger;
             }
             let label = if app.blind { "" } else { k.label };
-            caps.push(Span::styled(format!("{label:^w$}", w = k.width), cap));
-            caps.push(Span::raw(" "));
-            edges.push(Span::styled(EDGE.repeat(k.width), Style::new().fg(edge)));
-            edges.push(Span::raw(" "));
+            spans.push(Span::styled(format!("{label:^w$}", w = k.width), style));
+            spans.push(Span::raw(" "));
         }
-        lines.push(Line::from(caps));
-        lines.push(Line::from(edges));
+        lines.push(Line::from(spans));
     }
-    if app.fingers {
-        lines.push(Line::raw(""));
-        let legend: Vec<Span> = FINGERS
-            .iter()
-            .flat_map(|(name, c)| {
-                [
-                    Span::styled(SWATCH, Style::new().fg(*c)),
-                    Span::styled(format!(" {name}   "), super::dim()),
-                ]
-            })
-            .collect();
-        lines.push(Line::from(legend));
+    lines.push(Line::raw(""));
+    if let Some(t) = target {
+        let (name, color) = FINGERS[t.finger];
+        let label = match t.ch {
+            Some(' ') => "space",
+            _ => t.label,
+        };
+        let mut hint = vec![
+            Span::styled("next  ", super::dim()),
+            Span::styled(
+                format!(" {label} "),
+                Style::new()
+                    .bg(color)
+                    .fg(Color::Black)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(format!("  {name}"), Style::new().fg(color)),
+        ];
+        if needs_shift {
+            let side = if t.finger >= 4 { "left" } else { "right" };
+            hint.push(Span::styled(format!("   with {side} shift"), super::dim()));
+        }
+        lines.push(Line::from(hint));
     }
     f.render_widget(Paragraph::new(lines).alignment(Alignment::Center), area);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rows_are_equal_width_and_labels_have_room() {
+        for keys in layout() {
+            let w: usize = keys.iter().map(|k| k.width + 1).sum();
+            assert_eq!(w, ROW_WIDTH);
+            for k in &keys {
+                assert!(k.width >= k.label.len() + 2, "{:?} is cramped", k.label);
+            }
+        }
+    }
+
+    #[test]
+    fn finger_colors_are_fixed_and_distinct() {
+        let cs: Vec<Color> = FINGERS.iter().map(|f| f.1).collect();
+        assert!(
+            cs.iter().all(|c| matches!(c, Color::Rgb(..))),
+            "a theme can merge ansi colors"
+        );
+        for (i, a) in cs.iter().enumerate() {
+            assert!(cs[i + 1..].iter().all(|b| b != a));
+        }
+    }
 }

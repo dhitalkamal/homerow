@@ -14,6 +14,8 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
+// the one accent: cursor, active tab, live numbers
+pub const ACCENT: Color = Color::Rgb(255, 196, 92);
 pub const BAD: Color = Color::Red;
 pub const GOOD: Color = Color::Green;
 pub const KEYCAP: Color = Color::DarkGray;
@@ -60,7 +62,7 @@ fn draw_header(f: &mut Frame, area: Rect, app: &App) {
             tabs.push(Span::styled("   ", dim()));
         }
         let style = if *m == app.mode {
-            bold().add_modifier(Modifier::UNDERLINED)
+            bold().fg(ACCENT)
         } else {
             dim()
         };
@@ -75,15 +77,36 @@ fn draw_header(f: &mut Frame, area: Rect, app: &App) {
 }
 
 fn draw_footer(f: &mut Frame, area: Rect, app: &App) {
-    let hints = match app.mode {
-        Mode::Cards => "tab mode    esc quit    space reveal    [ ] deck",
-        Mode::Progress => "tab mode    esc quit",
-        _ if app.session.is_done() => "return next round    tab mode    esc quit",
-        _ => "tab mode    esc quit    ctrl+f fingers    ctrl+k heatmap    ctrl+l labels",
+    // (key, what it does): key in normal weight, action dimmed
+    let hints: &[(&str, &str)] = match app.mode {
+        Mode::Cards => &[
+            ("tab", "mode"),
+            ("esc", "quit"),
+            ("space", "reveal"),
+            ("[ ]", "deck"),
+        ],
+        Mode::Progress => &[("tab", "mode"), ("esc", "quit")],
+        _ if app.session.is_done() => &[("return", "next round"), ("tab", "mode"), ("esc", "quit")],
+        _ => &[
+            ("tab", "mode"),
+            ("esc", "quit"),
+            ("ctrl+f", "fingers"),
+            ("ctrl+k", "heatmap"),
+            ("ctrl+l", "labels"),
+        ],
     };
     let line = match &app.notice {
         Some(n) => Line::styled(n.as_str(), Style::new().fg(BAD)),
-        None => Line::styled(hints, dim()),
+        None => Line::from(
+            hints
+                .iter()
+                .enumerate()
+                .flat_map(|(i, (k, what))| {
+                    let gap = if i == 0 { "" } else { "     " };
+                    [Span::raw(format!("{gap}{k} ")), Span::styled(*what, dim())]
+                })
+                .collect::<Vec<_>>(),
+        ),
     };
     f.render_widget(Paragraph::new(line).alignment(Alignment::Center), area);
 }

@@ -43,12 +43,34 @@ fn typing_screen_is_focused() {
         assert!(s.contains(want), "missing {want:?} in\n{s}");
     }
     assert!(s.contains(&first_word(&a)));
-    for clutter in ["Speed trend", "Slowest", "practiced today"] {
+    for clutter in ["Speed trend", "Slowest", "practiced today", "L middle"] {
         assert!(
             !s.contains(clutter),
             "{clutter:?} belongs on the progress tab\n{s}"
         );
     }
+}
+
+#[test]
+fn stats_line_has_a_blank_line_above_it() {
+    let (a, _d) = app();
+    let s = screen(&a, 100, 40);
+    let rows: Vec<&str> = s.lines().collect();
+    let at = rows.iter().position(|r| r.contains("wpm")).unwrap();
+    assert!(
+        rows[at - 1].trim().is_empty(),
+        "text is jammed against stats\n{s}"
+    );
+}
+
+#[test]
+fn next_key_hint_names_the_finger() {
+    let (a, _d) = app();
+    let s = screen(&a, 100, 40);
+    let finger = ["pinky", "ring", "middle", "index", "thumb"]
+        .iter()
+        .any(|f| s.contains(f));
+    assert!(s.contains("next") && finger, "no finger hint in\n{s}");
 }
 
 #[test]

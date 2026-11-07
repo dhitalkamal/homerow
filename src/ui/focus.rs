@@ -26,7 +26,8 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, now: u64) {
         Constraint::Fill(1),
         Constraint::Length(1),
         Constraint::Length(1),
-        Constraint::Length(5),
+        // 3 text rows, each followed by a blank line
+        Constraint::Length(6),
         Constraint::Length(1),
         Constraint::Length(if kbd_h > 0 { 2 } else { 0 }),
         Constraint::Length(kbd_h),
@@ -75,9 +76,9 @@ fn stats_line(app: &App, now: u64) -> Line<'static> {
         format!("{secs}s")
     };
     Line::from(vec![
-        Span::styled(s.wpm(now).to_string(), bold()),
+        Span::styled(s.wpm(now).to_string(), bold().fg(super::ACCENT)),
         Span::styled(" wpm      ", dim()),
-        Span::styled(format!("{}%", s.accuracy()), bold()),
+        Span::styled(format!("{}%", s.accuracy()), bold().fg(super::ACCENT)),
         Span::styled(" accuracy      ", dim()),
         Span::styled(clock, dim()),
     ])

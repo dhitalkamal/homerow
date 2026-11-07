@@ -1,10 +1,10 @@
-// the text you type: done chars bright, the cursor underlined, a miss red,
-// the rest dim. long text scrolls so the cursor line stays near the top.
+// the text you type: typed chars fade, the cursor is an accent block, a miss
+// is red, the rest is bright. long text scrolls so the cursor line stays near the top.
 use crate::app::App;
 use crate::session::Cell;
 use ratatui::Frame;
 use ratatui::layout::Rect;
-use ratatui::style::{Modifier, Style};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
@@ -56,14 +56,15 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
                 (a..b)
                     .map(|i| {
                         let ch = s.text[i];
-                        // reversed video works in any theme, light or dark
                         let style = match s.cell(i) {
-                            Cell::Done => Style::new(),
-                            Cell::Current => Style::new().add_modifier(Modifier::REVERSED),
-                            Cell::Missed => {
-                                Style::new().fg(super::BAD).add_modifier(Modifier::REVERSED)
-                            }
-                            Cell::Pending => Style::new().add_modifier(Modifier::DIM),
+                            // typed text fades, what you still have to read stays bright
+                            Cell::Done => Style::new().add_modifier(Modifier::DIM),
+                            Cell::Current => Style::new()
+                                .bg(super::ACCENT)
+                                .fg(Color::Black)
+                                .add_modifier(Modifier::BOLD),
+                            Cell::Missed => Style::new().bg(super::BAD).fg(Color::Black),
+                            Cell::Pending => Style::new(),
                         };
                         let shown = if ch == '\n' {
                             return_glyph.clone()
