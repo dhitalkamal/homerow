@@ -64,6 +64,11 @@ Tab cycles through them, Esc quits.
   (15, 30, 60 or 120 seconds, or 25, 50 or 100 words) and switch on punctuation
   (sentences with capitals, commas and full stops) or numbers. Each round is
   filed under its test, like "30s +punct", and only compared with the same test.
+
+Race your best: once you have a best for a mode and test, a ghost runs through
+the text at that pace (a gray block on the letter it has reached) and the stats
+line shows "ghost 41: +6" when you are ahead or "-4" when behind. Switch it off
+with the "race your best" row on the settings tab.
 - weak keys: words built around your 3 slowest or most missed letters.
 - code: short real snippets (Python, Go, Rust, TypeScript, SQL, shell, git).
   Indentation after Return is typed for you.

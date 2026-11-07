@@ -160,3 +160,68 @@ fn history_shows_which_test_each_baseline_round_ran() {
         "{s}"
     );
 }
+
+#[test]
+fn ghost_shows_on_the_text_and_the_stats_line() {
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
+    let (mut a, _d) = app();
+    a.progress.add_round(
+        Round {
+            mode: "base".into(),
+            wpm: 40,
+            acc: 95,
+            at_ms: 0,
+            test: None,
+        },
+        60_000,
+    );
+    a.handle(Input::Tab, NOW);
+    a.handle(Input::BackTab, NOW);
+    let first = a.session.next_char().unwrap();
+    a.handle(Input::Text(first), NOW - 6_000);
+    a.tick(NOW);
+    let s = screen(&a, 100, 40);
+    assert!(s.contains("ghost 40"), "{s}");
+    assert!(
+        s.contains("-19") || s.contains("- 19"),
+        "1 typed, ghost at 20\n{s}"
+    );
+    let mut runs = Vec::new();
+    let mut t = Terminal::new(TestBackend::new(100, 40)).unwrap();
+    t.draw(|f| crate::ui::draw(f, &a, NOW, &mut runs)).unwrap();
+    let buf = t.backend().buffer();
+    let ghosted = buf
+        .content()
+        .iter()
+        .filter(|c| c.bg == crate::ui::KEYCAP)
+        .count();
+    assert_eq!(ghosted, 1, "exactly one ghost letter (keyboard is off)");
+}
+
+#[test]
+fn ghost_also_shows_in_kitty_zoom() {
+    let (mut a, _d) = app();
+    a.zoom_ok = true;
+    a.progress.settings.zoom = 2;
+    a.progress.add_round(
+        Round {
+            mode: "base".into(),
+            wpm: 40,
+            acc: 95,
+            at_ms: 0,
+            test: None,
+        },
+        60_000,
+    );
+    a.handle(Input::Tab, NOW);
+    a.handle(Input::BackTab, NOW);
+    let first = a.session.next_char().unwrap();
+    a.handle(Input::Text(first), NOW - 6_000);
+    a.tick(NOW);
+    let (_, runs) = super::tests::screen_and_runs(&a, 150, 40);
+    assert!(
+        runs.iter().any(|r| r.style.bg == Some(crate::ui::KEYCAP)),
+        "no ghost in zoomed text"
+    );
+}

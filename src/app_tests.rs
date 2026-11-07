@@ -447,3 +447,46 @@ fn baseline_uses_the_chosen_test_and_files_the_round_under_it() {
     );
     assert_eq!(a.last_round().unwrap().test.as_deref(), Some("25w +punct"));
 }
+
+#[test]
+fn ghost_races_at_your_best_pace_for_the_same_test() {
+    let (mut a, _d) = app();
+    a.progress.add_round(
+        store::Round {
+            mode: "base".into(),
+            wpm: 40,
+            acc: 95,
+            at_ms: 0,
+            test: None,
+        },
+        60_000,
+    );
+    a.handle(Input::Tab, 0);
+    a.handle(Input::BackTab, 0);
+    assert_eq!(a.ghost_wpm, Some(40));
+    let first = a.session.next_char().unwrap();
+    a.handle(Input::Text(first), 1_000);
+    a.tick(7_000);
+    // 6 seconds at 40 wpm is 20 characters
+    assert_eq!(a.ghost_at, Some(20));
+}
+
+#[test]
+fn no_ghost_without_a_best_or_when_switched_off() {
+    let (mut a, _d) = app();
+    assert_eq!(a.ghost_wpm, None, "no rounds yet");
+    a.progress.add_round(
+        store::Round {
+            mode: "base".into(),
+            wpm: 40,
+            acc: 95,
+            at_ms: 0,
+            test: None,
+        },
+        60_000,
+    );
+    a.progress.settings.ghost = false;
+    a.handle(Input::Tab, 0);
+    a.handle(Input::BackTab, 0);
+    assert_eq!(a.ghost_wpm, None);
+}

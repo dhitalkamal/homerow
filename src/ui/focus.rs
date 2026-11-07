@@ -119,6 +119,20 @@ fn stats_line(app: &App, now: u64) -> Line<'static> {
         let label = crate::baseline::label(opts.test, opts.punctuation, opts.numbers);
         line.push_span(Span::styled(format!("      {label}"), dim()));
     }
+    // race your best: the ghost's pace and how far ahead or behind you are
+    if let Some(w) = app.ghost_wpm {
+        let note = if s.elapsed(now) > 0 {
+            let lead = s.pos() as i64 - crate::history::ghost_pos(w, s.elapsed(now)) as i64;
+            if lead >= 0 {
+                format!("      ghost {w}: +{lead}")
+            } else {
+                format!("      ghost {w}: {lead}")
+            }
+        } else {
+            format!("      ghost {w}")
+        };
+        line.push_span(Span::styled(note, dim()));
+    }
     // your own file: say which one
     if let (Mode::Code, Some(name)) = (app.mode, &app.own_name) {
         line.push_span(Span::styled(format!("      from {name}"), dim()));
