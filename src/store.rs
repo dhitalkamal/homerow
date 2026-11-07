@@ -10,6 +10,8 @@ use std::{fs, io};
 // 3: key stats are kept per mode, version 2 combined stats go to baseline
 pub const VERSION: u32 = 3;
 const MAX_ROUNDS: usize = 200;
+// the mistakes list keeps this many words, dropping the least missed
+pub const MAX_MISTAKES: usize = 200;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Round {
@@ -28,6 +30,8 @@ pub struct Progress {
     pub stats: KeyStats,
     // key stats per round tag (base, keys, code)
     pub mode_stats: BTreeMap<String, KeyStats>,
+    // words you missed and how often; the mistakes drill practices these
+    pub mistakes: BTreeMap<String, u32>,
     pub rounds: Vec<Round>,
     pub boxes: BTreeMap<String, u32>,
     // practice ms per utc day, keyed YYYY-MM-DD
@@ -124,6 +128,7 @@ impl Default for Progress {
             version: VERSION,
             stats: KeyStats::new(),
             mode_stats: BTreeMap::new(),
+            mistakes: BTreeMap::new(),
             rounds: Vec::new(),
             boxes: BTreeMap::new(),
             days: BTreeMap::new(),
@@ -134,6 +139,34 @@ impl Default for Progress {
 }
 
 impl Progress {
+    // one more miss for this word; single letters are not worth drilling
+    pub fn note_mistake(&mut self, word: &str) {
+        if word.chars().count() < 2 {
+            return;
+        }
+        if !self.mistakes.contains_key(word) && self.mistakes.len() >= MAX_MISTAKES {
+            let least = self
+                .mistakes
+                .iter()
+                .min_by_key(|(_, n)| **n)
+                .map(|(w, _)| w.clone());
+            if let Some(w) = least {
+                self.mistakes.remove(&w);
+            }
+        }
+        *self.mistakes.entry(word.to_string()).or_insert(0) += 1;
+    }
+
+    // typed cleanly: one step closer to dropping off the list
+    pub fn note_clean(&mut self, word: &str) {
+        if let Some(n) = self.mistakes.get_mut(word) {
+            *n -= 1;
+            if *n == 0 {
+                self.mistakes.remove(word);
+            }
+        }
+    }
+
     pub fn add_round(&mut self, round: Round, practice_ms: u64) {
         *self.days.entry(day_key(round.at_ms)).or_insert(0) += practice_ms;
         self.rounds.push(round);

@@ -261,3 +261,27 @@ fn per_mode_key_stats_are_saved() {
     save(&path, &p).unwrap();
     assert_eq!(load(&path).0.mode_stats["code"][&'{'].e, 2);
 }
+
+#[test]
+fn mistakes_count_up_down_and_are_saved() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("p.json");
+    let mut p = Progress::default();
+    p.note_mistake("their");
+    p.note_mistake("their");
+    p.note_mistake("cat");
+    p.note_clean("cat");
+    assert_eq!(p.mistakes.get("their"), Some(&2));
+    assert!(!p.mistakes.contains_key("cat"), "fixed words drop off");
+    save(&path, &p).unwrap();
+    assert_eq!(load(&path).0.mistakes["their"], 2);
+}
+
+#[test]
+fn mistakes_list_is_capped() {
+    let mut p = Progress::default();
+    for i in 0..(MAX_MISTAKES + 20) {
+        p.note_mistake(&format!("w{i}"));
+    }
+    assert_eq!(p.mistakes.len(), MAX_MISTAKES);
+}

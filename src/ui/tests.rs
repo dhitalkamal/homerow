@@ -4,14 +4,14 @@ use crate::app::{Input, Mode};
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 
-const NOW: u64 = 1_794_009_600_000 + 15 * 3_600_000;
+pub(super) const NOW: u64 = 1_794_009_600_000 + 15 * 3_600_000;
 
-fn screen(app: &App, w: u16, h: u16) -> String {
+pub(super) fn screen(app: &App, w: u16, h: u16) -> String {
     screen_and_runs(app, w, h).0
 }
 
 // the text a test terminal shows, plus the kitty zoom runs drawn on top
-fn screen_and_runs(app: &App, w: u16, h: u16) -> (String, Vec<crate::zoom::Run>) {
+pub(super) fn screen_and_runs(app: &App, w: u16, h: u16) -> (String, Vec<crate::zoom::Run>) {
     let mut runs = Vec::new();
     let mut t = Terminal::new(TestBackend::new(w, h)).unwrap();
     t.draw(|f| draw(f, app, NOW, &mut runs)).unwrap();
@@ -26,7 +26,7 @@ fn screen_and_runs(app: &App, w: u16, h: u16) -> (String, Vec<crate::zoom::Run>)
     (s, runs)
 }
 
-fn app() -> (App, tempfile::TempDir) {
+pub(super) fn app() -> (App, tempfile::TempDir) {
     let dir = tempfile::tempdir().unwrap();
     (App::new(dir.path().join("p.json"), 5), dir)
 }
@@ -37,11 +37,11 @@ fn with_keyboard() -> (App, tempfile::TempDir) {
     (a, d)
 }
 
-fn first_word(a: &App) -> String {
+pub(super) fn first_word(a: &App) -> String {
     a.session.text.iter().take_while(|c| **c != ' ').collect()
 }
 
-fn go(a: &mut App, mode: Mode) {
+pub(super) fn go(a: &mut App, mode: Mode) {
     while a.mode != mode {
         a.handle(Input::Tab, NOW);
     }

@@ -22,12 +22,17 @@ Tab cycles through them, Esc quits.
 - weak keys: words built around your 3 slowest or most missed letters.
 - code: short real snippets (Python, Go, Rust, TypeScript, SQL, shell, git).
   Indentation after Return is typed for you.
+- mistakes: drills the words you got wrong in the other modes, weighted by how
+  often you missed them. Typing a word cleanly (in any mode) counts it down, so
+  fixed words drop off the list.
 - shortcuts: flash cards for text editing, macOS, Finder, zsh and IntelliJ.
 - progress: one view per mode (left/right switches between all modes,
   baseline, weak keys and code). Each view shows where you are now (average of
   the last 3 rounds), first round to now, best speed, accuracy, a speed trend
   (one line per mode) and that mode's weak keys. Code tracks symbols and digits
   too. Shortcut deck progress sits underneath.
+  Return opens the round history for the current view: every round with when,
+  mode, wpm and accuracy, newest first, scrolled with up/down.
 
 Speed and key stats are tracked separately per mode, because code is slower
 than prose and should not drag your baseline down. The weak keys drill uses

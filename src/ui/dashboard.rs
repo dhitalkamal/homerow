@@ -4,7 +4,7 @@ use super::{ACCENT, bold, dim};
 use crate::app::App;
 use crate::cards::{Deck, known};
 use crate::content::CARDS;
-use crate::history::{self, BASE, CODE, KEYS, View};
+use crate::history::{self, BASE, CODE, KEYS, MISTAKES, View};
 use crate::stats::{MIN_SAMPLES, avg_ms, weakness};
 use crate::store::{day_key, streak};
 use ratatui::Frame;
@@ -18,10 +18,11 @@ const TREND_ROUNDS: usize = 40;
 const FULL: &str = "\u{2588}";
 const EMPTY: &str = "\u{2591}";
 // one line color per mode in the trend chart
-const LINES: [(&str, &str, Color); 3] = [
+const LINES: [(&str, &str, Color); 4] = [
     (BASE, "baseline", Color::Cyan),
     (KEYS, "weak keys", Color::Green),
     (CODE, "code", Color::Magenta),
+    (MISTAKES, "mistakes", Color::Yellow),
 ];
 
 fn panel(title: &str) -> Block<'_> {
@@ -68,6 +69,10 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, now: u64) {
             ];
             let at = super::centered(middle, middle.width, 2);
             f.render_widget(Paragraph::new(msg).alignment(Alignment::Center), at);
+        }
+        Some(c) if app.show_history => {
+            draw_tiles(f, tiles, app, view, c, now);
+            super::history::render(f, middle, app, now);
         }
         Some(c) => {
             draw_tiles(f, tiles, app, view, c, now);

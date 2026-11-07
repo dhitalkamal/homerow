@@ -27,6 +27,8 @@ pub struct Session {
     pos: usize,
     errs: usize,
     missed_here: bool,
+    // text positions where a wrong key was pressed
+    misses: Vec<usize>,
     start: Option<u64>,
     last: u64,
     limit_ms: Option<u64>,
@@ -40,6 +42,7 @@ impl Session {
             pos: 0,
             errs: 0,
             missed_here: false,
+            misses: Vec::new(),
             start: None,
             last: 0,
             limit_ms,
@@ -64,6 +67,7 @@ impl Session {
         let tracked = key.is_ascii_graphic();
         if c != want {
             self.errs += 1;
+            self.misses.push(self.pos);
             self.missed_here = true;
             if tracked {
                 stats.entry(key).or_default().e += 1;
@@ -137,6 +141,53 @@ impl Session {
     }
     pub fn accuracy(&self) -> u32 {
         stats::accuracy(self.pos, self.errs)
+    }
+}
+
+impl Session {
+    // [start, end) of each word, split on spaces and newlines
+    fn words(&self) -> Vec<(usize, usize)> {
+        let mut out = Vec::new();
+        let mut start = None;
+        for (i, c) in self.text.iter().enumerate() {
+            match (c.is_whitespace(), start) {
+                (false, None) => start = Some(i),
+                (true, Some(s)) => {
+                    out.push((s, i));
+                    start = None;
+                }
+                _ => {}
+            }
+        }
+        if let Some(s) = start {
+            out.push((s, self.text.len()));
+        }
+        out
+    }
+
+    fn word(&self, (a, b): (usize, usize)) -> String {
+        self.text[a..b].iter().collect()
+    }
+
+    // words that had at least one wrong key, each once, in text order
+    pub fn missed_words(&self) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        for w in self.words() {
+            let word = self.word(w);
+            if self.misses.iter().any(|m| (w.0..w.1).contains(m)) && !out.contains(&word) {
+                out.push(word);
+            }
+        }
+        out
+    }
+
+    // words typed all the way through without a single wrong key
+    pub fn clean_words(&self) -> Vec<String> {
+        self.words()
+            .into_iter()
+            .filter(|w| w.1 <= self.pos && !self.misses.iter().any(|m| (w.0..w.1).contains(m)))
+            .map(|w| self.word(w))
+            .collect()
     }
 }
 
@@ -256,5 +307,16 @@ mod tests {
         assert_eq!(st[&'{'].n, 1);
         assert_eq!(st[&'1'].n, 1);
         assert!(!st.contains_key(&' '), "spaces are not keys worth drilling");
+    }
+
+    #[test]
+    fn words_with_a_miss_and_clean_words_are_told_apart() {
+        let mut st = KeyStats::new();
+        let mut s = Session::new("the cat sat", None);
+        typed(&mut s, "th", 0, 100, &mut st);
+        s.press('x', 300, &mut st);
+        typed(&mut s, "e cat sat", 400, 100, &mut st);
+        assert_eq!(s.missed_words(), vec!["the".to_string()]);
+        assert_eq!(s.clean_words(), vec!["cat".to_string(), "sat".to_string()]);
     }
 }
