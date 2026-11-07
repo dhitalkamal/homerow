@@ -6,6 +6,7 @@ mod cli;
 mod clipboard;
 mod content;
 mod daily;
+mod decks;
 mod demo;
 mod history;
 mod input;
