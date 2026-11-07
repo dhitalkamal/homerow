@@ -133,7 +133,7 @@ pub fn weak_text(rng: &mut Rng, focus: &[char], n: usize) -> String {
 }
 
 pub fn code_text(rng: &mut Rng) -> &'static str {
-    *rng.pick(&CODE)
+    rng.pick(&CODE)
 }
 
 #[cfg(test)]

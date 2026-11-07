@@ -1,0 +1,59 @@
+# homerow
+
+Terminal trainer for touch typing and Mac shortcuts. One binary, no runtime
+dependencies.
+
+## install
+
+    cargo install --path .
+
+That puts `homerow` in `~/.cargo/bin`. Run it with `homerow`.
+
+## modes
+
+Tab cycles through them, Esc quits.
+
+- Baseline 60s: random common words for one minute. Use it to track your WPM.
+- Weak keys: words built around your 3 slowest or most missed letters.
+- Code: short real snippets (Python, Go, Rust, TypeScript, SQL, shell, git).
+  Indentation after Return is typed for you.
+- Shortcuts: flash cards for text editing, macOS, Finder, zsh and IntelliJ.
+
+A wrong key turns red and the cursor waits until you press the right one.
+
+Typing keys: ctrl+F finger colors, ctrl+K weak key heatmap, ctrl+L hide key
+labels (forces you to stop looking).
+
+Shortcut keys: press the real combo. Space shows the answer (counts as a miss).
+`[` and `]` change deck. A card is learned after 3 right answers in a row.
+
+## recall cards
+
+Some shortcuts never reach a terminal app because macOS or the terminal takes
+them first (cmd+Tab, cmd+Space, cmd+Q, screenshots). Those are recall cards:
+think of the keys, press Space, then y or n.
+
+## terminal setup for cmd and opt
+
+- cmd: needs a terminal that speaks the kitty keyboard protocol (kitty,
+  WezTerm, Ghostty, recent iTerm2 with the CSI u option on). homerow turns it on
+  when available. Without it, cmd cards still work through Space and y/n.
+- opt: kitty sends special characters for opt+letter unless you set
+  `macos_option_as_alt both` in kitty.conf. Arrows and delete work either way.
+- Any combo your terminal binds itself (kitty uses cmd+t, cmd+w, cmd+c and
+  more) never reaches homerow. Use Space to reveal those.
+
+## progress
+
+Saved to `~/.local/share/homerow/progress.json` (or `$XDG_DATA_HOME/homerow`)
+after every round and card. An unreadable file is moved aside as
+`progress.json.bad-<time>`, never deleted.
+
+## dev
+
+    cargo test
+    cargo clippy --all-targets -- -D warnings
+    cargo fmt --check
+
+Logic lives in pure modules with tests (stats, session, cards, content, store,
+app, input). `ui/` only draws, `main.rs` runs the event loop.

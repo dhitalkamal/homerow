@@ -1,6 +1,6 @@
 // one typing round: the target text, cursor, misses and clock.
 // you can't move past a wrong key, so every round trains clean presses.
-use crate::stats::{self, KeyStat, KeyStats};
+use crate::stats::{self, KeyStats};
 
 // a gap longer than this is a pause, not slow typing, so it is capped
 const MAX_GAP_MS: u64 = 1500;
@@ -65,12 +65,12 @@ impl Session {
             self.errs += 1;
             self.missed_here = true;
             if tracked {
-                stats.entry(key).or_insert_with(KeyStat::default).e += 1;
+                stats.entry(key).or_default().e += 1;
             }
             return Press::Wrong;
         }
         if tracked {
-            let s = stats.entry(key).or_insert_with(KeyStat::default);
+            let s = stats.entry(key).or_default();
             s.n += 1;
             s.ms += (now - self.last).min(MAX_GAP_MS);
         }
@@ -119,6 +119,7 @@ impl Session {
     pub fn pos(&self) -> usize {
         self.pos
     }
+    #[cfg(test)]
     pub fn errors(&self) -> usize {
         self.errs
     }
@@ -144,6 +145,7 @@ impl Session {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::stats::KeyStat;
 
     fn typed(s: &mut Session, text: &str, start: u64, gap: u64, st: &mut KeyStats) -> u64 {
         let mut t = start;
