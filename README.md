@@ -13,8 +13,14 @@ On Apple Silicon Macs this downloads the latest release, checks it against the
 published SHA-256 checksum, removes the download quarantine flag (the binary is
 not Apple signed) and installs it to `~/.local/bin`. On other systems it builds
 from source with `cargo`, or tells you how to get Rust first. It never uses
-sudo, installs nothing if the download or checksum is wrong, and says how to add
-`~/.local/bin` to your PATH if needed. Run the same line again to update.
+sudo, and installs nothing if the download or checksum is wrong. Run the same
+line again to update.
+
+If `~/.local/bin` is not on your PATH yet, the installer adds it to your shell's
+startup file (zsh: `~/.zshrc`, bash: `~/.bash_profile` on macOS or `~/.bashrc`
+on Linux, fish: `config.fish`), once, with a comment saying it came from the
+homerow installer, and tells you which file it changed. Other shells get the
+line printed instead. `HOMEROW_NO_MODIFY_PATH=1` skips this step.
 
 Options: `HOMEROW_VERSION=v0.1.0` pins a release, `HOMEROW_INSTALL_DIR=...`
 picks another folder. The checksum catches broken or changed downloads; it

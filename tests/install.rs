@@ -14,10 +14,27 @@ fn script() -> PathBuf {
 fn fake_release(dir: &Path, tamper: bool) {
     let stage = dir.join("stage");
     fs::create_dir_all(&stage).unwrap();
-    fs::write(stage.join("homerow"), "#!/bin/sh\necho homerow test build\n").unwrap();
-    run("chmod", &["755", stage.join("homerow").to_str().unwrap()], &stage);
+    fs::write(
+        stage.join("homerow"),
+        "#!/bin/sh\necho homerow test build\n",
+    )
+    .unwrap();
+    run(
+        "chmod",
+        &["755", stage.join("homerow").to_str().unwrap()],
+        &stage,
+    );
     fs::write(stage.join("LICENSE"), "MIT\n").unwrap();
-    run("tar", &["czf", dir.join(ASSET).to_str().unwrap(), "homerow", "LICENSE"], &stage);
+    run(
+        "tar",
+        &[
+            "czf",
+            dir.join(ASSET).to_str().unwrap(),
+            "homerow",
+            "LICENSE",
+        ],
+        &stage,
+    );
     let sum = run("shasum", &["-a", "256", ASSET], dir);
     let mut line = String::from_utf8(sum.stdout).unwrap();
     if tamper {
@@ -27,27 +44,46 @@ fn fake_release(dir: &Path, tamper: bool) {
 }
 
 fn run(cmd: &str, args: &[&str], cwd: &Path) -> Output {
-    let out = Command::new(cmd).args(args).current_dir(cwd).output().unwrap();
-    assert!(out.status.success(), "{cmd} failed: {}", String::from_utf8_lossy(&out.stderr));
+    let out = Command::new(cmd)
+        .args(args)
+        .current_dir(cwd)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{cmd} failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     out
 }
 
 // runs install.sh with a clean PATH so a real cargo or homerow is never used
 fn install(release: &Path, bin: &Path, platform: &str) -> Output {
-    Command::new("sh")
-        .arg(script())
+    install_with(release, bin, platform, &[])
+}
+
+// same, with extra environment (SHELL, PATH, opt-outs); HOME is the temp dir
+fn install_with(release: &Path, bin: &Path, platform: &str, extra: &[(&str, &str)]) -> Output {
+    let mut cmd = Command::new("sh");
+    cmd.arg(script())
         .env_clear()
         .env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")
         .env("HOME", release)
         .env("HOMEROW_BASE_URL", format!("file://{}", release.display()))
         .env("HOMEROW_INSTALL_DIR", bin)
-        .env("HOMEROW_PLATFORM", platform)
-        .output()
-        .unwrap()
+        .env("HOMEROW_PLATFORM", platform);
+    for (k, v) in extra {
+        cmd.env(k, v);
+    }
+    cmd.output().unwrap()
 }
 
 fn text(o: &Output) -> String {
-    format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr))
+    format!(
+        "{}{}",
+        String::from_utf8_lossy(&o.stdout),
+        String::from_utf8_lossy(&o.stderr)
+    )
 }
 
 #[test]
@@ -58,7 +94,10 @@ fn installs_the_release_binary_on_apple_silicon() {
     let out = install(t.path(), &bin, "Darwin-arm64");
     assert!(out.status.success(), "{}", text(&out));
     let ran = Command::new(bin.join("homerow")).output().unwrap();
-    assert_eq!(String::from_utf8_lossy(&ran.stdout).trim(), "homerow test build");
+    assert_eq!(
+        String::from_utf8_lossy(&ran.stdout).trim(),
+        "homerow test build"
+    );
     assert!(text(&out).contains("installed homerow"), "{}", text(&out));
 }
 
@@ -72,7 +111,10 @@ fn checksum_mismatch_installs_nothing_and_keeps_the_old_version() {
     let out = install(t.path(), &bin, "Darwin-arm64");
     assert!(!out.status.success());
     assert!(text(&out).contains("checksum"), "{}", text(&out));
-    assert_eq!(fs::read_to_string(bin.join("homerow")).unwrap(), "old version");
+    assert_eq!(
+        fs::read_to_string(bin.join("homerow")).unwrap(),
+        "old version"
+    );
 }
 
 #[test]
@@ -86,9 +128,92 @@ fn unsupported_platform_without_cargo_explains_how_to_get_rust() {
 
 #[test]
 fn says_how_to_add_the_folder_to_path() {
+    // an unknown shell gets printed instructions (sh fills SHELL in from the
+    // login shell when it is missing, so the shell is named here)
     let t = tempfile::tempdir().unwrap();
     fake_release(t.path(), false);
     let bin = t.path().join("bin");
-    let out = install(t.path(), &bin, "Darwin-arm64");
+    let out = install_with(t.path(), &bin, "Darwin-arm64", &[("SHELL", "/bin/tcsh")]);
     assert!(text(&out).contains("export PATH="), "{}", text(&out));
+}
+
+#[test]
+fn zsh_profile_gets_the_path_line_once() {
+    let t = tempfile::tempdir().unwrap();
+    fake_release(t.path(), false);
+    let bin = t.path().join("bin");
+    for _ in 0..2 {
+        let out = install_with(t.path(), &bin, "Darwin-arm64", &[("SHELL", "/bin/zsh")]);
+        assert!(out.status.success(), "{}", text(&out));
+    }
+    let rc = fs::read_to_string(t.path().join(".zshrc")).unwrap();
+    assert_eq!(rc.matches(bin.to_str().unwrap()).count(), 1, "{rc}");
+    assert!(
+        rc.contains("export PATH=") && rc.contains("homerow installer"),
+        "{rc}"
+    );
+}
+
+#[test]
+fn bash_on_macos_uses_bash_profile() {
+    let t = tempfile::tempdir().unwrap();
+    fake_release(t.path(), false);
+    let bin = t.path().join("bin");
+    let out = install_with(t.path(), &bin, "Darwin-arm64", &[("SHELL", "/bin/bash")]);
+    assert!(text(&out).contains(".bash_profile"), "{}", text(&out));
+    assert!(
+        fs::read_to_string(t.path().join(".bash_profile"))
+            .unwrap()
+            .contains(bin.to_str().unwrap())
+    );
+}
+
+#[test]
+fn fish_uses_fish_add_path() {
+    let t = tempfile::tempdir().unwrap();
+    fake_release(t.path(), false);
+    let bin = t.path().join("bin");
+    install_with(
+        t.path(),
+        &bin,
+        "Darwin-arm64",
+        &[("SHELL", "/opt/homebrew/bin/fish")],
+    );
+    let cfg = fs::read_to_string(t.path().join(".config/fish/config.fish")).unwrap();
+    assert!(
+        cfg.contains("fish_add_path") && cfg.contains(bin.to_str().unwrap()),
+        "{cfg}"
+    );
+}
+
+#[test]
+fn opt_out_and_unknown_shells_leave_profiles_alone() {
+    let t = tempfile::tempdir().unwrap();
+    fake_release(t.path(), false);
+    let bin = t.path().join("bin");
+    let out = install_with(
+        t.path(),
+        &bin,
+        "Darwin-arm64",
+        &[("SHELL", "/bin/zsh"), ("HOMEROW_NO_MODIFY_PATH", "1")],
+    );
+    assert!(!t.path().join(".zshrc").exists());
+    assert!(text(&out).contains("export PATH="), "{}", text(&out));
+    install_with(t.path(), &bin, "Darwin-arm64", &[("SHELL", "/bin/tcsh")]);
+    assert!(!t.path().join(".tcshrc").exists() && !t.path().join(".zshrc").exists());
+}
+
+#[test]
+fn folder_already_on_path_changes_nothing() {
+    let t = tempfile::tempdir().unwrap();
+    fake_release(t.path(), false);
+    let bin = t.path().join("bin");
+    let path = format!("{}:/usr/bin:/bin", bin.display());
+    install_with(
+        t.path(),
+        &bin,
+        "Darwin-arm64",
+        &[("SHELL", "/bin/zsh"), ("PATH", &path)],
+    );
+    assert!(!t.path().join(".zshrc").exists());
 }
