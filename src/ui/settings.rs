@@ -67,7 +67,9 @@ fn row(app: &App, i: usize, item: Item, density: Density) -> Line<'static> {
         ratatui::style::Style::new()
     };
     let value = item.value(&app.progress);
-    let shown = if item == Item::Size && app.progress.density == Density::Auto {
+    let shown = if item == Item::Zoom && !app.zoom_ok {
+        "needs kitty".to_string()
+    } else if item == Item::Size && app.progress.density == Density::Auto {
         format!("auto ({})", density.label())
     } else {
         value.to_string()

@@ -30,7 +30,8 @@ pub fn bold() -> Style {
     Style::new().add_modifier(Modifier::BOLD)
 }
 
-pub fn draw(f: &mut Frame, app: &App, now: u64) {
+// zoom collects kitty text sizing runs; main.rs writes them after the frame
+pub fn draw(f: &mut Frame, app: &App, now: u64, zoom: &mut Vec<crate::zoom::Run>) {
     let [header, body, footer] = Layout::vertical([
         Constraint::Length(2),
         Constraint::Min(0),
@@ -45,7 +46,7 @@ pub fn draw(f: &mut Frame, app: &App, now: u64) {
         Mode::Cards => card::render(f, body, app),
         Mode::Progress => dashboard::render(f, body, app, now),
         Mode::Settings => settings::render(f, body, app, density),
-        _ => focus::render(f, body, app, now, density),
+        _ => focus::render(f, body, app, now, density, zoom),
     }
     draw_footer(f, footer, app, now);
 }

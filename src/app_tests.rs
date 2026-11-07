@@ -277,3 +277,57 @@ fn size_keys_step_from_what_auto_is_showing() {
     a.handle(combo("ctrl+-"), 0);
     assert_eq!(a.progress.density, store::Density::Spacious);
 }
+
+#[test]
+fn zoom_keys_step_between_1x_and_3x_when_kitty_supports_it() {
+    let (mut a, dir) = app();
+    a.zoom_ok = true;
+    for _ in 0..4 {
+        a.handle(combo("ctrl+]"), 0);
+    }
+    assert_eq!(a.progress.settings.zoom, 3);
+    assert_eq!(a.toast(0), Some("zoom: 3x"));
+    a.handle(combo("ctrl+["), 0);
+    assert_eq!(a.progress.settings.zoom, 2);
+    let (saved, _) = store::load(&dir.path().join("p.json"));
+    assert_eq!(saved.settings.zoom, 2);
+}
+
+#[test]
+fn zoom_keys_explain_when_the_terminal_cannot_zoom() {
+    let (mut a, _d) = app();
+    a.handle(combo("ctrl+]"), 0);
+    assert_eq!(a.progress.settings.zoom, 1);
+    assert_eq!(a.toast(0), Some("zoom needs kitty 0.40 or newer"));
+}
+
+#[test]
+fn zoom_keys_are_never_graded_as_shortcut_cards() {
+    let (mut a, _d) = app();
+    a.zoom_ok = true;
+    a.mode = Mode::Cards;
+    set_card(&mut a, "ctrl+R");
+    a.handle(combo("ctrl+]"), 0);
+    assert_eq!(a.card_state, CardState::Ask);
+    assert!(a.progress.boxes.is_empty());
+}
+
+#[test]
+fn settings_zoom_row_does_nothing_without_kitty_support() {
+    let (mut a, _d) = app();
+    go(&mut a, Mode::Settings);
+    let row = crate::settings::ITEMS
+        .iter()
+        .position(|i| *i == crate::settings::Item::Zoom)
+        .unwrap();
+    for _ in 0..row {
+        a.handle(key(cards::Key::Down), 0);
+    }
+    a.handle(Input::Text(' '), 0);
+    a.handle(key(cards::Key::Right), 0);
+    assert_eq!(a.progress.settings.zoom, 1);
+    assert_eq!(a.toast(0), Some("zoom needs kitty 0.40 or newer"));
+    a.zoom_ok = true;
+    a.handle(Input::Text(' '), 0);
+    assert_eq!(a.progress.settings.zoom, 2);
+}

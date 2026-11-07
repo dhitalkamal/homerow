@@ -43,6 +43,8 @@ pub struct Settings {
     pub hide_labels: bool,
     // typing text drawn with block letters, 4 columns by 4 rows each
     pub big_text: bool,
+    // kitty text sizing scale for the typing text, 1 is normal
+    pub zoom: u8,
 }
 
 impl Default for Settings {
@@ -54,6 +56,7 @@ impl Default for Settings {
             heatmap: false,
             hide_labels: false,
             big_text: false,
+            zoom: 1,
         }
     }
 }

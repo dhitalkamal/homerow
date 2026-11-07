@@ -52,9 +52,20 @@ falls back to normal text otherwise.
 For a smaller step up, zoom your terminal instead (cmd+= in most macOS
 terminals, ctrl+= or ctrl+shift+= elsewhere); the layout adapts.
 
-## size and zoom
+## zoom (kitty)
 
-Zoom is your terminal's job: in kitty, cmd+= and cmd+- change the font size.
+In kitty 0.40 or newer, ctrl+] zooms the typing text in and ctrl+[ zooms it
+out: normal, 2x, 3x. Only the text you type grows; the rest of the screen and
+your other terminal windows stay as they are. It uses kitty's text sizing
+protocol, so homerow checks for support at startup; in other terminals the
+keys only show a short note and the settings row reads "needs kitty".
+
+Careful outside kitty: many terminals send ctrl+[ as the esc key, and esc
+quits homerow. In kitty the two keys stay separate.
+
+## size and terminal zoom
+
+Terminal zoom (whole window) is your terminal's job: in kitty, cmd+= and cmd+- change the font size.
 homerow redraws to fit whatever size it gets:
 
 - plenty of room: full keyboard and hands

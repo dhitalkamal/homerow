@@ -12,7 +12,14 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 // density is already resolved (never auto) by the caller
-pub fn render(f: &mut Frame, area: Rect, app: &App, now: u64, density: Density) {
+pub fn render(
+    f: &mut Frame,
+    area: Rect,
+    app: &App,
+    now: u64,
+    density: Density,
+    zoom: &mut Vec<crate::zoom::Run>,
+) {
     if app.session.is_done() {
         return results(f, area, app);
     }
@@ -24,6 +31,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, now: u64, density: Density) 
         opts.keyboard,
         opts.hands,
         opts.big_text,
+        if app.zoom_ok { opts.zoom as u16 } else { 1 },
     );
     let kbd_h = match p.kbd {
         Kbd::Large => keyboard::LARGE_HEIGHT,
@@ -32,7 +40,9 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, now: u64, density: Density) 
         Kbd::Hidden => 0,
     };
     let text_h = p.rows
-        * if p.big {
+        * if p.zoom > 1 {
+            p.zoom + 1
+        } else if p.big {
             BIG_ROW
         } else if p.spaced {
             2
@@ -54,7 +64,9 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, now: u64, density: Density) 
     ])
     .areas(area);
     let text_area = centered(text, p.text_width, text.height);
-    if p.big {
+    if p.zoom > 1 {
+        zoom.extend(prompt::zoom_runs(text_area, app, p.rows, p.zoom));
+    } else if p.big {
         prompt::render_big(f, text_area, app, p.rows);
     } else {
         prompt::render(f, text_area, app, p.spaced);
