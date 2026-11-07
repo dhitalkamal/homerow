@@ -96,6 +96,9 @@ pub struct App {
     pub progress_view: history::View,
     // progress tab shows the round list instead of the overview
     pub show_history: bool,
+    // rounds from your own file (--file); the code tab uses them when set
+    pub own: Vec<String>,
+    pub own_name: Option<String>,
     pub history_scroll: usize,
     // last known terminal size, so auto size can be stepped from
     pub screen: (u16, u16),
@@ -125,6 +128,8 @@ impl App {
             settings_row: 0,
             progress_view: history::View::All,
             show_history: false,
+            own: Vec::new(),
+            own_name: None,
             history_scroll: 0,
             screen: (100, 40),
             zoom_ok: false,
@@ -242,6 +247,10 @@ impl App {
                 );
                 self.session =
                     Session::new(&content::weak_text(&mut self.rng, &self.focus, 24), None);
+            }
+            Mode::Code if !self.own.is_empty() => {
+                let chunk = self.rng.pick(&self.own).clone();
+                self.session = Session::new(&chunk, None);
             }
             Mode::Code => self.session = Session::new(content::code_text(&mut self.rng), None),
             Mode::Mistakes => {

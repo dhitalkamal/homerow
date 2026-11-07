@@ -74,3 +74,13 @@ fn results_screen_shows_the_daily_goal() {
     let s = screen(&a, 100, 40);
     assert!(s.contains("/15 min today"), "{s}");
 }
+
+#[test]
+fn code_tab_names_the_file_you_are_typing() {
+    let (mut a, _d) = app();
+    a.own = vec!["let total = add(1, 2);".to_string()];
+    a.own_name = Some("main.rs".to_string());
+    go(&mut a, Mode::Code);
+    let s = screen(&a, 100, 40);
+    assert!(s.contains("from main.rs"), "{s}");
+}
