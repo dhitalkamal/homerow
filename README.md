@@ -131,6 +131,38 @@ Linux, clip on Windows), run directly without a shell. Without one it falls
 back to the terminal clipboard code (OSC 52), which kitty, iTerm2, WezTerm and
 many others support.
 
+## github badge
+
+Show your typing speed on your GitHub profile:
+
+    homerow login
+
+homerow shows a one-time code, opens github.com/login/device when you press
+Enter, and waits while you approve it there. It asks for the `gist` scope only
+(create and edit your gists, nothing else on your account), makes one secret
+gist that holds the badge, and prints a line for your profile README:
+
+    [![typing speed](https://img.shields.io/endpoint?url=...)](https://github.com/dhitalkamal/homerow)
+
+The badge shows your recent baseline speed, the average of your last 3
+baseline rounds, like "typing 52 wpm". It updates when you quit homerow, and
+only when the number changed. A quit without internet stays silent and tries
+again next time. `homerow sync` updates it right away and says what went wrong
+if something did. GitHub and shields.io cache the badge for a few minutes.
+
+The GitHub token is kept in your system keychain (macOS Keychain, Windows
+Credential Manager, or the Secret Service on Linux, such as GNOME Keyring or
+KWallet), never in a file. `github.json` next to your progress file only says
+which gist holds the badge. On macOS the keychain may ask for permission again
+after homerow is updated, since the binary is not Apple signed; Always Allow
+stops the question until the next update.
+
+`homerow logout` removes the token and that file. The gist stays on GitHub
+(the logout message links to it, delete it there if you like), and
+https://github.com/settings/applications revokes homerow's access completely.
+Secret gists are unlisted, not private: anyone with the link can see the badge
+file, which is what a badge is for.
+
 ## daily goal
 
 The "daily goal" row on the settings tab sets how many minutes a day you want to
@@ -240,7 +272,8 @@ after every round and card. An unreadable file is moved aside as
     cargo fmt --check
 
 Logic lives in pure modules with tests (stats, session, cards, content, store,
-app, input). `ui/` only draws, `main.rs` runs the event loop.
+app, input, github, account). account.rs runs the github flows against small
+traits, so tests use fakes and never touch the network or your keychain. `ui/` only draws, `main.rs` runs the event loop.
 
 ## license
 
