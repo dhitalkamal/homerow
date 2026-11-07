@@ -24,7 +24,8 @@ pub fn progress(now: u64) -> Progress {
                 acc: 93 + rng.below(7) as u32,
                 at_ms: now - d * DAY - (3 - i) * HOUR,
             };
-            p.add_round(round, 4 * 60_000);
+            // 3 rounds of 6 minutes: each demo day meets the default 15 minute goal
+            p.add_round(round, 6 * 60_000);
         }
     }
     // clean keys, with a few clearly slow and sloppy ones

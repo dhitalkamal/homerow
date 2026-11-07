@@ -3,6 +3,9 @@ use crate::store::{Density, Progress};
 
 // kitty zoom steps: 1x (normal), 2x, 3x
 pub const MAX_ZOOM: u8 = 3;
+// daily goal: space cycles these, left/right step by 5 up to MAX_GOAL
+const GOAL_PRESETS: [u32; 6] = [10, 15, 20, 30, 45, 60];
+pub const MAX_GOAL: u32 = 120;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Item {
@@ -14,9 +17,10 @@ pub enum Item {
     BigText,
     Zoom,
     Size,
+    Goal,
 }
 
-pub const ITEMS: [Item; 8] = [
+pub const ITEMS: [Item; 9] = [
     Item::Keyboard,
     Item::Hands,
     Item::FingerColors,
@@ -25,6 +29,7 @@ pub const ITEMS: [Item; 8] = [
     Item::BigText,
     Item::Zoom,
     Item::Size,
+    Item::Goal,
 ];
 
 impl Item {
@@ -38,18 +43,21 @@ impl Item {
             Item::BigText => "big text",
             Item::Zoom => "zoom (kitty)",
             Item::Size => "size",
+            Item::Goal => "daily goal",
         }
     }
 
-    pub fn value(self, p: &Progress) -> &'static str {
+    pub fn value(self, p: &Progress) -> String {
         if self == Item::Size {
-            return p.density.label();
+            return p.density.label().to_string();
         }
         if self == Item::Zoom {
-            return match p.settings.zoom {
-                2 => "2x",
-                3 => "3x",
-                _ => "1x",
+            return format!("{}x", p.settings.zoom.clamp(1, MAX_ZOOM));
+        }
+        if self == Item::Goal {
+            return match p.settings.goal_min {
+                0 => "off".to_string(),
+                m => format!("{m} min"),
             };
         }
         let s = &p.settings;
@@ -60,9 +68,9 @@ impl Item {
             Item::Heatmap => s.heatmap,
             Item::HideLabels => s.hide_labels,
             Item::BigText => s.big_text,
-            Item::Zoom | Item::Size => false,
+            Item::Zoom | Item::Size | Item::Goal => false,
         };
-        if on { "on" } else { "off" }
+        if on { "on" } else { "off" }.to_string()
     }
 }
 
@@ -76,12 +84,17 @@ fn switch(item: Item, p: &mut Progress) -> Option<&mut bool> {
         Item::Heatmap => &mut s.heatmap,
         Item::HideLabels => &mut s.hide_labels,
         Item::BigText => &mut s.big_text,
-        Item::Zoom | Item::Size => return None,
+        Item::Zoom | Item::Size | Item::Goal => return None,
     })
 }
 
 // space or return: flip a switch, or cycle the size round
 pub fn toggle(item: Item, p: &mut Progress) {
+    if item == Item::Goal {
+        let g = p.settings.goal_min;
+        p.settings.goal_min = GOAL_PRESETS.iter().copied().find(|m| *m > g).unwrap_or(0);
+        return;
+    }
     if item == Item::Zoom {
         p.settings.zoom = p.settings.zoom % MAX_ZOOM + 1;
         return;
@@ -103,6 +116,15 @@ pub fn toggle(item: Item, p: &mut Progress) {
 // right turns a switch on or makes size bigger, left the opposite.
 // from auto, size steps from whatever auto shows at this terminal size.
 pub fn adjust(item: Item, p: &mut Progress, right: bool, screen: (u16, u16)) {
+    if item == Item::Goal {
+        let g = p.settings.goal_min;
+        p.settings.goal_min = if right {
+            (g + 5).min(MAX_GOAL)
+        } else {
+            g.saturating_sub(5)
+        };
+        return;
+    }
     if item == Item::Zoom {
         p.settings.zoom = if right {
             (p.settings.zoom + 1).min(MAX_ZOOM)
@@ -177,5 +199,24 @@ mod tests {
             adjust(Item::Zoom, &mut p, true, (100, 40));
         }
         assert_eq!(p.settings.zoom, 3);
+    }
+
+    #[test]
+    fn daily_goal_row_cycles_presets_and_steps_by_five() {
+        let mut p = Progress::default();
+        assert_eq!(Item::Goal.value(&p), "15 min");
+        toggle(Item::Goal, &mut p);
+        assert_eq!(p.settings.goal_min, 20);
+        adjust(Item::Goal, &mut p, true, (100, 40));
+        assert_eq!(p.settings.goal_min, 25);
+        for _ in 0..10 {
+            adjust(Item::Goal, &mut p, false, (100, 40));
+        }
+        assert_eq!(p.settings.goal_min, 0);
+        assert_eq!(Item::Goal.value(&p), "off");
+        for _ in 0..40 {
+            adjust(Item::Goal, &mut p, true, (100, 40));
+        }
+        assert_eq!(p.settings.goal_min, MAX_GOAL);
     }
 }

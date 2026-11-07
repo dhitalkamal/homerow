@@ -54,6 +54,13 @@ Each letter on the keyboard is tinted by the finger that presses it (8 fixed
 colors, so no theme can merge two fingers), the next key fills with that color,
 and the line under the keyboard names the finger.
 
+## daily goal
+
+The "daily goal" row on the settings tab sets how many minutes a day you want to
+practice (15 by default; space cycles 10, 15, 20, 30, 45, 60, left/right step by
+5, 0 turns it off). The progress tab and the results screen show today against
+the goal, and the day streak only counts days that met it.
+
 ## big text
 
 Off by default. Turn on the "big text" row on the settings tab to draw the

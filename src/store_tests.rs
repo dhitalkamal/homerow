@@ -285,3 +285,28 @@ fn mistakes_list_is_capped() {
     }
     assert_eq!(p.mistakes.len(), MAX_MISTAKES);
 }
+
+#[test]
+fn goal_streak_counts_only_days_that_met_the_goal() {
+    let mut d = BTreeMap::new();
+    d.insert(day_key(NOW), 20 * 60_000);
+    d.insert(day_key(NOW - DAY), 5 * 60_000);
+    d.insert(day_key(NOW - 2 * DAY), 20 * 60_000);
+    assert_eq!(
+        goal_streak(&d, NOW, 15),
+        1,
+        "yesterday was short of 15 minutes"
+    );
+    assert_eq!(goal_streak(&d, NOW, 0), 3, "goal off: any practice counts");
+}
+
+#[test]
+fn daily_goal_defaults_to_15_minutes_and_is_saved() {
+    assert_eq!(Settings::default().goal_min, 15);
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("p.json");
+    let mut p = Progress::default();
+    p.settings.goal_min = 30;
+    save(&path, &p).unwrap();
+    assert_eq!(load(&path).0.settings.goal_min, 30);
+}
