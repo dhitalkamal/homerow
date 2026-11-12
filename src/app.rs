@@ -1,17 +1,20 @@
 // app state and what each key press does to it. no drawing here, see ui/.
 use crate::cards::{self, Combo, Deck, Key};
-use crate::content::{self, CARDS};
+use crate::content::CARDS;
 use crate::history;
 use crate::rng::Rng;
 use crate::session::Session;
-use crate::stats::weak_letters;
 use crate::store::{self, Progress, Round};
 use std::path::PathBuf;
 
+// the default baseline test, a plain minute
+#[cfg(test)]
 const BASELINE_MS: u64 = 60_000;
 const DONE_PAUSE_MS: u64 = 650;
 // how long a size change message stays in the footer
 pub const TOAST_MS: u64 = 1500;
+// items in one lesson round
+const LESSON_ITEMS: usize = 20;
 
 // keys after the terminal layer has folded them (see input.rs)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,17 +32,21 @@ pub enum Mode {
     Keys,
     Code,
     Mistakes,
+    Lessons,
+    Daily,
     Cards,
     Progress,
     Settings,
 }
 
 impl Mode {
-    pub const ALL: [Mode; 7] = [
+    pub const ALL: [Mode; 9] = [
         Mode::Base,
         Mode::Keys,
         Mode::Code,
         Mode::Mistakes,
+        Mode::Lessons,
+        Mode::Daily,
         Mode::Cards,
         Mode::Progress,
         Mode::Settings,
@@ -50,6 +57,8 @@ impl Mode {
             Mode::Keys => "weak keys",
             Mode::Code => "code",
             Mode::Mistakes => "mistakes",
+            Mode::Lessons => "lessons",
+            Mode::Daily => "daily",
             Mode::Cards => "shortcuts",
             Mode::Progress => "progress",
             Mode::Settings => "settings",
@@ -61,6 +70,8 @@ impl Mode {
             Mode::Keys => history::KEYS,
             Mode::Code => history::CODE,
             Mode::Mistakes => history::MISTAKES,
+            Mode::Lessons => history::LESSONS,
+            Mode::Daily => history::DAILY,
             Mode::Cards => "cards",
             Mode::Progress => "progress",
             Mode::Settings => "settings",
@@ -68,7 +79,10 @@ impl Mode {
     }
     // modes where you type text and a session runs
     pub fn is_typing(self) -> bool {
-        matches!(self, Mode::Base | Mode::Keys | Mode::Code | Mode::Mistakes)
+        matches!(
+            self,
+            Mode::Base | Mode::Keys | Mode::Code | Mode::Mistakes | Mode::Lessons | Mode::Daily
+        )
     }
 }
 
@@ -84,12 +98,27 @@ pub struct App {
     pub mode: Mode,
     pub session: Session,
     pub focus: Vec<char>,
+    // weak letter pairs the weak keys drill leans on
+    pub focus_pairs: Vec<String>,
+    // race your best: the pace of your best for this mode and test, and the
+    // letter the ghost is on (updated every tick while a round runs)
+    pub ghost_wpm: Option<u32>,
+    pub ghost_at: Option<usize>,
+    // latest time seen from keys and ticks; only moves forward. the daily
+    // challenge reads today's date from it
+    pub clock: u64,
     pub progress: Progress,
     pub path: PathBuf,
     pub card: usize,
     pub card_state: CardState,
+    // built-in cards followed by any from your deck file
+    pub cards: Vec<cards::Card>,
+    // steps of a key-sequence card already pressed ("ctrl+b c" has two)
+    pub seq_pos: usize,
     pub deck: Option<Deck>,
     pub notice: Option<String>,
+    // a share card waiting to be copied by the main loop
+    pub pending_copy: Option<String>,
     // selected row on the settings tab
     pub settings_row: usize,
     // which mode the progress tab shows
@@ -119,12 +148,19 @@ impl App {
             mode: Mode::Base,
             session: Session::new("", None),
             focus: Vec::new(),
+            focus_pairs: Vec::new(),
+            ghost_wpm: None,
+            ghost_at: None,
+            clock: 0,
             progress,
             path,
             card: 0,
             card_state: CardState::Ask,
+            cards: CARDS.to_vec(),
+            seq_pos: 0,
             deck: None,
             notice,
+            pending_copy: None,
             settings_row: 0,
             progress_view: history::View::All,
             show_history: false,
@@ -143,6 +179,7 @@ impl App {
     }
 
     pub fn handle(&mut self, input: Input, now: u64) {
+        self.clock = self.clock.max(now);
         match input {
             Input::Esc => self.quit = true,
             Input::Combo(c) if zoom_step(c).is_some() => {
@@ -179,6 +216,11 @@ impl App {
             Input::Text(ch) if self.session.is_done() => {
                 if ch == '\n' {
                     self.restart();
+                } else if ch == 'c' {
+                    // share card: main.rs does the copying, so this stays testable
+                    let goal = self.progress.settings.goal_min;
+                    let streak = crate::store::goal_streak(&self.progress.days, now, goal);
+                    self.pending_copy = self.last_round().map(|r| crate::share::card(r, streak));
                 }
             }
             Input::Text(ch) => {
@@ -194,11 +236,19 @@ impl App {
     }
 
     pub fn tick(&mut self, now: u64) {
+        self.clock = self.clock.max(now);
         match self.card_state {
             CardState::Done(until) if self.mode == Mode::Cards && now >= until => self.next_card(),
             _ if self.mode.is_typing() => {
                 self.session.tick(now);
                 self.record_if_done(now);
+                self.ghost_at = match self.ghost_wpm {
+                    Some(w) if self.session.elapsed(now) > 0 && !self.session.is_done() => {
+                        let last = self.session.text.len().saturating_sub(1);
+                        Some(history::ghost_pos(w, self.session.elapsed(now)).min(last))
+                    }
+                    _ => None,
+                };
             }
             _ => {}
         }
@@ -210,62 +260,17 @@ impl App {
         self.restart();
     }
 
-    fn record_if_done(&mut self, now: u64) {
-        if !self.session.is_done() || self.recorded {
-            return;
-        }
-        self.recorded = true;
-        let round = Round {
-            mode: self.mode.tag().into(),
-            wpm: self.session.wpm(now),
-            acc: self.session.accuracy(),
-            at_ms: now,
-        };
-        self.progress.add_round(round, self.session.elapsed(now));
-        for w in self.session.missed_words() {
-            self.progress.note_mistake(&w);
-        }
-        for w in self.session.clean_words() {
-            self.progress.note_clean(&w);
-        }
-        self.save();
-    }
-
-    fn restart(&mut self) {
-        self.recorded = false;
-        match self.mode {
-            Mode::Base => {
-                self.session = Session::new(
-                    &content::baseline_text(&mut self.rng, 150),
-                    Some(BASELINE_MS),
-                )
-            }
-            Mode::Keys => {
-                self.focus = weak_letters(
-                    &history::merged(&self.progress, &[history::BASE, history::KEYS]),
-                    3,
-                );
-                self.session =
-                    Session::new(&content::weak_text(&mut self.rng, &self.focus, 24), None);
-            }
-            Mode::Code if !self.own.is_empty() => {
-                let chunk = self.rng.pick(&self.own).clone();
-                self.session = Session::new(&chunk, None);
-            }
-            Mode::Code => self.session = Session::new(content::code_text(&mut self.rng), None),
-            Mode::Mistakes => {
-                let text = content::mistakes_text(&mut self.rng, &self.progress.mistakes, 24);
-                self.session = Session::new(&text, None);
-            }
-            Mode::Cards => self.next_card(),
-            Mode::Progress | Mode::Settings => {}
-        }
-    }
-
     fn next_card(&mut self) {
         let last = Some(self.card);
-        self.card = cards::pick(CARDS, &self.progress.boxes, self.deck, last, &mut self.rng);
+        self.card = cards::pick(
+            &self.cards,
+            &self.progress.boxes,
+            self.deck,
+            last,
+            &mut self.rng,
+        );
         self.card_state = CardState::Ask;
+        self.seq_pos = 0;
     }
 
     fn save(&mut self) {
@@ -275,6 +280,11 @@ impl App {
                 self.path.display()
             ));
         }
+    }
+
+    // a short footer message from outside the app (like the copy result)
+    pub fn notify(&mut self, msg: &str, now: u64) {
+        self.toast_msg = Some((msg.to_string(), now + 2 * TOAST_MS));
     }
 
     pub fn toast(&self, now: u64) -> Option<&str> {
@@ -292,6 +302,22 @@ impl App {
         } else {
             history::merged(&self.progress, &[history::BASE, history::KEYS])
         }
+    }
+
+    // add cards from your deck file after the built-in ones
+    pub fn add_cards(&mut self, extra: Vec<cards::Card>) {
+        self.cards.extend(extra);
+    }
+
+    // built-in decks, then custom ones in the order the file names them
+    pub fn decks(&self) -> Vec<Deck> {
+        let mut out: Vec<Deck> = Deck::ALL.to_vec();
+        for c in &self.cards {
+            if !out.contains(&c.deck) {
+                out.push(c.deck);
+            }
+        }
+        out
     }
 
     pub fn last_round(&self) -> Option<&Round> {
@@ -322,8 +348,12 @@ fn size_step(c: Combo) -> Option<bool> {
 // shortcut card keys and settings keys live in their own files
 mod card_keys;
 mod progress_keys;
+mod rounds;
 mod settings_keys;
 
 #[cfg(test)]
 #[path = "app_tests.rs"]
 mod tests;
+#[cfg(test)]
+#[path = "app_tests_practice.rs"]
+mod tests_practice;

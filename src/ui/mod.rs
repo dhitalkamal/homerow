@@ -68,7 +68,7 @@ fn draw_header(f: &mut Frame, area: Rect, app: &App) {
     let mut tabs = Vec::new();
     for (i, m) in Mode::ALL.iter().enumerate() {
         if i > 0 {
-            tabs.push(Span::styled("   ", dim()));
+            tabs.push(Span::styled("  ", dim()));
         }
         let style = if *m == app.mode {
             bold().fg(ACCENT)
@@ -107,7 +107,12 @@ fn draw_footer(f: &mut Frame, area: Rect, app: &App, now: u64) {
             ("tab", "mode"),
             ("esc", "quit"),
         ],
-        _ if app.session.is_done() => &[("return", "next round"), ("tab", "mode"), ("esc", "quit")],
+        _ if app.session.is_done() => &[
+            ("return", "next round"),
+            ("c", "copy share card"),
+            ("tab", "mode"),
+            ("esc", "quit"),
+        ],
         _ => &[("tab", "mode"), ("esc", "quit"), ("ctrl + -", "size")],
     };
     // an error beats a size toast, a toast beats the key hints

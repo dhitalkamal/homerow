@@ -19,6 +19,10 @@ pub struct Round {
     pub wpm: u32,
     pub acc: u32,
     pub at_ms: u64,
+    // baseline test the round ran (like "30s +punct"); None for other modes
+    // and for rounds saved before test options existed
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub test: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -32,6 +36,10 @@ pub struct Progress {
     pub mode_stats: BTreeMap<String, KeyStats>,
     // words you missed and how often; the mistakes drill practices these
     pub mistakes: BTreeMap<String, u32>,
+    // letter pair speed in text modes (baseline and weak keys)
+    pub pairs: crate::stats::PairStats,
+    // guided lessons: how many keys are unlocked (see lessons::ORDER)
+    pub lesson_keys: usize,
     pub rounds: Vec<Round>,
     pub boxes: BTreeMap<String, u32>,
     // practice ms per utc day, keyed YYYY-MM-DD
@@ -56,6 +64,12 @@ pub struct Settings {
     pub zoom: u8,
     // minutes of practice a day that count toward the streak, 0 is off
     pub goal_min: u32,
+    // baseline test: length, sentences with punctuation, numbers mixed in
+    pub test: crate::baseline::Length,
+    pub punctuation: bool,
+    pub numbers: bool,
+    // race your best: a ghost at your personal-best pace
+    pub ghost: bool,
 }
 
 impl Default for Settings {
@@ -69,6 +83,10 @@ impl Default for Settings {
             big_text: false,
             zoom: 1,
             goal_min: 15,
+            test: crate::baseline::Length::Time(60),
+            punctuation: false,
+            numbers: false,
+            ghost: true,
         }
     }
 }
@@ -132,6 +150,8 @@ impl Default for Progress {
             stats: KeyStats::new(),
             mode_stats: BTreeMap::new(),
             mistakes: BTreeMap::new(),
+            pairs: crate::stats::PairStats::new(),
+            lesson_keys: crate::lessons::START,
             rounds: Vec::new(),
             boxes: BTreeMap::new(),
             days: BTreeMap::new(),

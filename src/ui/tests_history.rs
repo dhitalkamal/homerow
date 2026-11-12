@@ -20,6 +20,7 @@ fn history_view_lists_rounds_newest_first() {
             wpm: 31,
             acc: 94,
             at_ms: NOW - 3 * 3_600_000,
+            test: None,
         },
         60_000,
     );
@@ -29,6 +30,7 @@ fn history_view_lists_rounds_newest_first() {
             wpm: 22,
             acc: 97,
             at_ms: NOW - 120_000,
+            test: None,
         },
         60_000,
     );
@@ -50,6 +52,7 @@ fn progress_shows_todays_minutes_against_the_goal() {
             wpm: 30,
             acc: 95,
             at_ms: NOW,
+            test: None,
         },
         12 * 60_000,
     );
@@ -83,4 +86,271 @@ fn code_tab_names_the_file_you_are_typing() {
     go(&mut a, Mode::Code);
     let s = screen(&a, 100, 40);
     assert!(s.contains("from main.rs"), "{s}");
+}
+
+#[test]
+fn stats_line_shows_the_test_and_counts_down_from_its_length() {
+    let (mut a, _d) = app();
+    a.progress.settings.test = crate::baseline::Length::Time(30);
+    a.handle(Input::Tab, NOW);
+    a.handle(Input::BackTab, NOW);
+    let s = screen(&a, 100, 40);
+    assert!(s.contains("30s left") && s.contains("30s"), "{s}");
+}
+
+#[test]
+fn results_compare_only_with_the_same_test() {
+    let (mut a, _d) = app();
+    a.progress.add_round(
+        Round {
+            mode: "base".into(),
+            wpm: 99,
+            acc: 98,
+            at_ms: NOW - 100_000,
+            test: Some("60s".into()),
+        },
+        60_000,
+    );
+    a.progress.settings.test = crate::baseline::Length::Words(25);
+    a.handle(Input::Tab, NOW);
+    a.handle(Input::BackTab, NOW);
+    let text: Vec<char> = a.session.text.clone();
+    let mut t = NOW - 60_000;
+    for ch in text {
+        if a.session.next_char() == Some(ch) {
+            a.handle(Input::Text(ch), t);
+            t += 150;
+        }
+    }
+    let s = screen(&a, 100, 40);
+    assert!(
+        !s.contains("best 99"),
+        "a 60s best shown on a 25 word result\n{s}"
+    );
+}
+
+#[test]
+fn history_shows_which_test_each_baseline_round_ran() {
+    let (mut a, _d) = app();
+    a.progress.add_round(
+        Round {
+            mode: "base".into(),
+            wpm: 44,
+            acc: 97,
+            at_ms: NOW - 60_000,
+            test: Some("30s +punct".into()),
+        },
+        60_000,
+    );
+    a.progress.add_round(
+        Round {
+            mode: "base".into(),
+            wpm: 38,
+            acc: 95,
+            at_ms: NOW - 90_000,
+            test: None,
+        },
+        60_000,
+    );
+    go(&mut a, Mode::Progress);
+    a.handle(Input::Text('\n'), NOW);
+    let s = screen(&a, 110, 40);
+    assert!(
+        s.contains("baseline 30s +punct") && s.contains("baseline 60s"),
+        "{s}"
+    );
+}
+
+#[test]
+fn ghost_shows_on_the_text_and_the_stats_line() {
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
+    let (mut a, _d) = app();
+    a.progress.add_round(
+        Round {
+            mode: "base".into(),
+            wpm: 40,
+            acc: 95,
+            at_ms: 0,
+            test: None,
+        },
+        60_000,
+    );
+    a.handle(Input::Tab, NOW);
+    a.handle(Input::BackTab, NOW);
+    let first = a.session.next_char().unwrap();
+    a.handle(Input::Text(first), NOW - 6_000);
+    a.tick(NOW);
+    let s = screen(&a, 100, 40);
+    assert!(s.contains("ghost 40"), "{s}");
+    assert!(
+        s.contains("-19") || s.contains("- 19"),
+        "1 typed, ghost at 20\n{s}"
+    );
+    let mut runs = Vec::new();
+    let mut t = Terminal::new(TestBackend::new(100, 40)).unwrap();
+    t.draw(|f| crate::ui::draw(f, &a, NOW, &mut runs)).unwrap();
+    let buf = t.backend().buffer();
+    let ghosted = buf
+        .content()
+        .iter()
+        .filter(|c| c.bg == crate::ui::KEYCAP)
+        .count();
+    assert_eq!(ghosted, 1, "exactly one ghost letter (keyboard is off)");
+}
+
+#[test]
+fn ghost_also_shows_in_kitty_zoom() {
+    let (mut a, _d) = app();
+    a.zoom_ok = true;
+    a.progress.settings.zoom = 2;
+    a.progress.add_round(
+        Round {
+            mode: "base".into(),
+            wpm: 40,
+            acc: 95,
+            at_ms: 0,
+            test: None,
+        },
+        60_000,
+    );
+    a.handle(Input::Tab, NOW);
+    a.handle(Input::BackTab, NOW);
+    let first = a.session.next_char().unwrap();
+    a.handle(Input::Text(first), NOW - 6_000);
+    a.tick(NOW);
+    let (_, runs) = super::tests::screen_and_runs(&a, 150, 40);
+    assert!(
+        runs.iter().any(|r| r.style.bg == Some(crate::ui::KEYCAP)),
+        "no ghost in zoomed text"
+    );
+}
+
+#[test]
+fn slow_pairs_show_on_the_drill_and_the_dashboard() {
+    let (mut a, _d) = app();
+    a.progress.pairs.insert(
+        "ng".into(),
+        crate::stats::KeyStat {
+            n: 20,
+            e: 8,
+            ms: 12_000,
+        },
+    );
+    a.progress.add_round(
+        Round {
+            mode: "keys".into(),
+            wpm: 30,
+            acc: 90,
+            at_ms: NOW,
+            test: None,
+        },
+        60_000,
+    );
+    go(&mut a, Mode::Keys);
+    assert!(
+        screen(&a, 110, 40).contains("ng"),
+        "focus line shows the pair"
+    );
+    go(&mut a, Mode::Progress);
+    let s = screen(&a, 120, 40);
+    assert!(s.contains("slow pairs") && s.contains("ng"), "{s}");
+}
+
+#[test]
+fn lessons_show_the_keyboard_and_what_is_next() {
+    let (mut a, _d) = app();
+    assert!(!a.progress.settings.keyboard);
+    go(&mut a, Mode::Lessons);
+    let s = screen(&a, 100, 44);
+    assert!(s.contains("shift"), "keyboard shows in lessons\n{s}");
+    assert!(s.contains("lesson 8/27") && s.contains("new key"), "{s}");
+    let text: Vec<char> = a.session.text.clone();
+    let mut t = NOW - 30_000;
+    for ch in text {
+        if a.session.next_char() == Some(ch) {
+            a.handle(Input::Text(ch), t);
+            t += 100;
+        }
+    }
+    let s = screen(&a, 100, 44);
+    assert!(s.contains("unlocked G"), "{s}");
+}
+
+#[test]
+fn daily_shows_the_date_and_best_today() {
+    let (mut a, _d) = app();
+    a.tick(NOW);
+    let today = crate::store::day_key(NOW);
+    a.progress.add_round(
+        Round {
+            mode: "daily".into(),
+            wpm: 48,
+            acc: 97,
+            at_ms: NOW - 1_000,
+            test: Some(today.clone()),
+        },
+        60_000,
+    );
+    go(&mut a, Mode::Daily);
+    let s = screen(&a, 100, 40);
+    assert!(
+        s.contains(&format!("daily {today}")) && s.contains("best today 48"),
+        "{s}"
+    );
+    assert!(s.contains("settings"), "all tabs still fit at 100 columns");
+}
+
+#[test]
+fn results_footer_offers_the_share_card() {
+    let (mut a, _d) = app();
+    go(&mut a, Mode::Code);
+    let text: Vec<char> = a.session.text.clone();
+    let mut t = NOW - 60_000;
+    for ch in text {
+        if a.session.next_char() == Some(ch) {
+            a.handle(Input::Text(ch), t);
+            t += 150;
+        }
+    }
+    let s = screen(&a, 110, 40);
+    assert!(s.contains("copy share card"), "{s}");
+}
+
+#[test]
+fn sequence_cards_show_how_far_you_are() {
+    let (mut a, _d) = app();
+    a.mode = Mode::Cards;
+    a.card = crate::content::CARDS
+        .iter()
+        .position(|c| c.combo == "ctrl+b c")
+        .unwrap();
+    a.card_state = crate::app::CardState::Ask;
+    a.handle(Input::Combo(crate::cards::parse("ctrl+b").unwrap()), NOW);
+    let s = screen(&a, 100, 40);
+    assert!(s.contains("1 of 2 keys"), "{s}");
+}
+
+#[test]
+fn custom_decks_show_on_the_dashboard() {
+    use crate::deckfile::{Entry, to_cards};
+    let (mut a, _d) = app();
+    a.add_cards(to_cards(vec![Entry {
+        deck: "Figma".into(),
+        action: "Group".into(),
+        keys: "cmd+G".into(),
+    }]));
+    a.progress.add_round(
+        Round {
+            mode: "base".into(),
+            wpm: 30,
+            acc: 95,
+            at_ms: NOW,
+            test: None,
+        },
+        60_000,
+    );
+    go(&mut a, Mode::Progress);
+    let s = screen(&a, 110, 48);
+    assert!(s.contains("Figma") && s.contains("0/1 learned"), "{s}");
 }

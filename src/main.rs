@@ -1,13 +1,26 @@
+mod account;
 mod app;
+mod baseline;
+mod brand;
 mod cards;
 mod cli;
+mod clipboard;
+mod commands;
 mod content;
+mod daily;
+mod deckfile;
+mod decks;
 mod demo;
+mod github;
 mod history;
 mod input;
+mod keychain;
+mod lessons;
+mod net;
 mod rng;
 mod session;
 mod settings;
+mod share;
 mod stats;
 mod store;
 mod ui;
@@ -23,6 +36,41 @@ use std::io::Write;
 use std::io::{self, stdout};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+// where your deck file lives unless --decks says otherwise
+fn default_decks_path() -> std::path::PathBuf {
+    let base = std::env::var_os("XDG_CONFIG_HOME")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| {
+            std::path::PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".config")
+        });
+    base.join(brand::NAME).join("decks.txt")
+}
+
+// cards from your deck file plus a note about skipped lines. a missing
+// default file just means no custom decks; a missing --decks file is an error.
+fn load_decks(explicit: Option<&std::path::Path>) -> (Vec<cards::Card>, Option<String>) {
+    let path = explicit
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(default_decks_path);
+    let text = match std::fs::read_to_string(&path) {
+        Ok(t) => t,
+        Err(_) if explicit.is_none() => return (Vec::new(), None),
+        Err(e) => {
+            eprintln!("could not read {}: {e}", path.display());
+            std::process::exit(2);
+        }
+    };
+    let (entries, errs) = deckfile::parse(&text);
+    let note = errs.first().map(|first| {
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        format!("{name}: {} line(s) skipped, first {first}", errs.len())
+    });
+    (deckfile::to_cards(entries), note)
+}
+
 fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -31,12 +79,24 @@ fn now_ms() -> u64 {
 
 const HELP: &str = "homerow - typing and mac shortcut trainer
 
-usage: homerow [--demo] [--file PATH]
+usage: homerow [--demo] [--file PATH] [--decks PATH]
+       homerow login [--token] | sync | logout
 
   --demo        start with two weeks of sample progress, kept in a temp file.
                 your real progress is not read or changed.
   -f, --file    type your own text: the code tab uses PATH, a few lines at a
                 time.
+  --decks       your own shortcut decks from PATH (default
+                ~/.config/homerow/decks.txt when it exists).
+
+  login         sign in with github and put a typing speed badge on your
+                profile (a secret gist holds it, the login sits in your
+                system keychain).
+  login --token same, with a token you make on github (gist scope only)
+                instead of the browser sign-in. it is pasted at a hidden
+                prompt, never typed on the command line.
+  sync          update the badge now; it also updates when you quit.
+  logout        forget the github login on this computer.
 
 keys: tab switches mode, esc quits.
 progress: ~/.local/share/homerow/progress.json";
@@ -53,6 +113,9 @@ fn main() -> io::Result<()> {
     if args.help {
         println!("{HELP}");
         return Ok(());
+    }
+    if let Some(cmd) = args.command {
+        std::process::exit(commands::run(cmd));
     }
     // load your own file before the screen takes over, so errors are readable
     let own = match &args.file {
@@ -82,7 +145,13 @@ fn main() -> io::Result<()> {
     } else {
         store::default_path()
     };
+    // your own shortcut decks, read before the screen opens so errors are readable
+    let (custom, deck_note) = load_decks(args.decks.as_deref());
     let mut app = app::App::new(path.clone(), now_ms());
+    app.add_cards(custom);
+    if app.notice.is_none() {
+        app.notice = deck_note;
+    }
     if let Some(p) = &args.file {
         app.own = own;
         app.own_name = p.file_name().map(|n| n.to_string_lossy().into_owned());
@@ -107,6 +176,7 @@ fn main() -> io::Result<()> {
     ratatui::restore();
     if !args.demo {
         println!("progress saved to {}", path.display());
+        commands::sync_on_quit(&path, &app.progress);
     } else {
         // demo data is throwaway, clean it up
         let _ = std::fs::remove_file(&path);
@@ -161,6 +231,13 @@ fn run(term: &mut ratatui::DefaultTerminal, app: &mut app::App) -> io::Result<()
             && let Some(i) = input::map(k)
         {
             app.handle(i, now_ms());
+            if let Some(card) = app.pending_copy.take() {
+                let msg = match clipboard::copy(&card) {
+                    clipboard::Copied::Tool(_) => "copied share card",
+                    clipboard::Copied::Terminal => "share card sent to the terminal clipboard",
+                };
+                app.notify(msg, now_ms());
+            }
         }
     }
     Ok(())

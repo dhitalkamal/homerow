@@ -36,7 +36,8 @@ pub fn render(
         area.width,
         area.height,
         density,
-        opts.keyboard,
+        // lessons always show the keyboard: beginners need to see the new key
+        opts.keyboard || app.mode == Mode::Lessons,
         opts.hands,
         opts.big_text,
         if app.zoom_ok { opts.zoom as u16 } else { 1 },
@@ -102,10 +103,10 @@ pub fn render(
 fn stats_line(app: &App, now: u64) -> Line<'static> {
     let s = &app.session;
     let secs = s.elapsed(now) / 1000;
-    let clock = if app.mode == Mode::Base {
-        format!("{}s left", 60u64.saturating_sub(secs))
-    } else {
-        format!("{secs}s")
+    let opts = app.progress.settings;
+    let clock = match (app.mode, opts.test.limit_ms()) {
+        (Mode::Base, Some(limit)) => format!("{}s left", (limit / 1000).saturating_sub(secs)),
+        _ => format!("{secs}s"),
     };
     let mut line = Line::from(vec![
         Span::styled(s.wpm(now).to_string(), bold().fg(super::ACCENT)),
@@ -114,6 +115,44 @@ fn stats_line(app: &App, now: u64) -> Line<'static> {
         Span::styled(" accuracy      ", dim()),
         Span::styled(clock, dim()),
     ]);
+    // baseline: which test this is
+    if app.mode == Mode::Base {
+        let label = crate::baseline::label(opts.test, opts.punctuation, opts.numbers);
+        line.push_span(Span::styled(format!("      {label}"), dim()));
+    }
+    // race your best: the ghost's pace and how far ahead or behind you are
+    if let Some(w) = app.ghost_wpm {
+        let note = if s.elapsed(now) > 0 {
+            let lead = s.pos() as i64 - crate::history::ghost_pos(w, s.elapsed(now)) as i64;
+            if lead >= 0 {
+                format!("      ghost {w}: +{lead}")
+            } else {
+                format!("      ghost {w}: {lead}")
+            }
+        } else {
+            format!("      ghost {w}")
+        };
+        line.push_span(Span::styled(note, dim()));
+    }
+    // guided lessons: how far along, and the key being learned
+    if app.mode == Mode::Lessons {
+        let level = app.progress.lesson_keys;
+        let new = crate::lessons::newest(level).to_ascii_uppercase();
+        let total = crate::lessons::ORDER.len();
+        line.push_span(Span::styled(
+            format!("      lesson {level}/{total}  new key "),
+            dim(),
+        ));
+        line.push_span(Span::styled(new.to_string(), bold()));
+    }
+    // daily challenge: today's date and your best on it
+    if app.mode == Mode::Daily {
+        let date = app.test_label().unwrap_or_default();
+        line.push_span(Span::styled(format!("      daily {date}"), dim()));
+        if let Some(best) = crate::history::best_for(&app.progress, crate::history::DAILY, &date) {
+            line.push_span(Span::styled(format!("  best today {best}"), dim()));
+        }
+    }
     // your own file: say which one
     if let (Mode::Code, Some(name)) = (app.mode, &app.own_name) {
         line.push_span(Span::styled(format!("      from {name}"), dim()));
@@ -124,18 +163,23 @@ fn stats_line(app: &App, now: u64) -> Line<'static> {
         for c in &app.focus {
             line.push_span(Span::styled(format!(" {}", c.to_ascii_uppercase()), bold()));
         }
+        for p in &app.focus_pairs {
+            line.push_span(Span::styled(format!("  {p}"), bold()));
+        }
     }
     line
 }
 
 fn results(f: &mut Frame, area: Rect, app: &App) {
     let Some(r) = app.last_round() else { return };
-    // compare only with rounds of the same mode: code is slower than prose
+    // compare only with rounds of the same mode and test: code is slower than
+    // prose, and a 15 second sprint is faster than a 2 minute test
+    let test = crate::history::test_of(r);
     let typing: Vec<_> = app
         .progress
         .rounds
         .iter()
-        .filter(|x| x.mode == r.mode)
+        .filter(|x| x.mode == r.mode && crate::history::test_of(x) == test)
         .collect();
     let best = typing.iter().map(|x| x.wpm).max().unwrap_or(0);
     let prev = typing.iter().rev().nth(1);
@@ -162,6 +206,24 @@ fn results(f: &mut Frame, area: Rect, app: &App) {
         None => ("first round in this mode".to_string(), dim()),
     };
     lines.push(Line::styled(delta, style));
+    // guided lessons: did this round open the next key
+    if r.mode == crate::history::LESSONS {
+        let level = app.progress.lesson_keys;
+        let passed = crate::lessons::passes(r.wpm, r.acc);
+        let (note, style) = if passed && level == crate::lessons::ORDER.len() {
+            (
+                "every key unlocked".to_string(),
+                Style::new().fg(super::GOOD),
+            )
+        } else if passed {
+            let key = crate::lessons::newest(level).to_ascii_uppercase();
+            (format!("unlocked {key}"), Style::new().fg(super::GOOD))
+        } else {
+            let (acc, wpm) = (crate::lessons::PASS_ACC, crate::lessons::PASS_WPM);
+            (format!("{acc}% and {wpm} wpm unlock the next key"), dim())
+        };
+        lines.push(Line::styled(note, style));
+    }
     // today's practice against the daily goal, counted on the round's own day
     let goal = app.progress.settings.goal_min as u64;
     if goal > 0 {

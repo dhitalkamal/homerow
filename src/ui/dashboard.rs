@@ -2,10 +2,9 @@
 // where you started, where you are now, the trend, weak keys and decks
 use super::{ACCENT, bold, dim};
 use crate::app::App;
-use crate::cards::{Deck, known};
-use crate::content::CARDS;
-use crate::history::{self, BASE, CODE, KEYS, MISTAKES, View};
-use crate::stats::{MIN_SAMPLES, avg_ms, weakness};
+use crate::cards::known;
+use crate::history::{self, BASE, CODE, DAILY, KEYS, LESSONS, MISTAKES, View};
+use crate::stats::{MIN_SAMPLES, avg_ms, weak_pairs, weakness};
 use crate::store::{day_key, goal_streak};
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
@@ -18,11 +17,13 @@ const TREND_ROUNDS: usize = 40;
 const FULL: &str = "\u{2588}";
 const EMPTY: &str = "\u{2591}";
 // one line color per mode in the trend chart
-const LINES: [(&str, &str, Color); 4] = [
+const LINES: [(&str, &str, Color); 6] = [
     (BASE, "baseline", Color::Cyan),
     (KEYS, "weak keys", Color::Green),
     (CODE, "code", Color::Magenta),
     (MISTAKES, "mistakes", Color::Yellow),
+    (LESSONS, "lessons", Color::LightBlue),
+    (DAILY, "daily", Color::LightGreen),
 ];
 
 fn panel(title: &str) -> Block<'_> {
@@ -43,7 +44,7 @@ fn bar(filled: usize, width: usize, color: Color) -> [Span<'static>; 2] {
 
 pub fn render(f: &mut Frame, area: Rect, app: &App, now: u64) {
     let view = app.progress_view;
-    let deck_h = Deck::ALL.len() as u16 + 2;
+    let deck_h = app.decks().len() as u16 + 2;
     let [views, tiles, middle, decks] = Layout::vertical([
         Constraint::Length(1),
         Constraint::Length(4),
@@ -219,8 +220,14 @@ fn draw_weak(f: &mut Frame, area: Rect, app: &App, view: View) {
         .map(|(c, s)| (*c, weakness(Some(s), avg)))
         .collect();
     keys.sort_by(|a, b| b.1.total_cmp(&a.1));
-    let rows = area.height.saturating_sub(2) as usize;
-    let lines: Vec<Line> = if keys.is_empty() {
+    // text views also list the slowest letter pairs on the last line
+    let slow: Vec<String> = match view {
+        View::All | View::Base | View::Keys => weak_pairs(&app.progress.pairs, 3),
+        _ => Vec::new(),
+    };
+    let rows =
+        (area.height.saturating_sub(2) as usize).saturating_sub(usize::from(!slow.is_empty()));
+    let mut lines: Vec<Line> = if keys.is_empty() {
         vec![Line::styled(
             " type a few rounds to find your weak keys",
             dim(),
@@ -246,6 +253,18 @@ fn draw_weak(f: &mut Frame, area: Rect, app: &App, view: View) {
             })
             .collect()
     };
+    if !slow.is_empty() {
+        let mut spans = vec![Span::styled(" slow pairs ", dim())];
+        for pair in &slow {
+            let s = app.progress.pairs[pair];
+            spans.push(Span::styled(format!("  {pair}"), bold()));
+            spans.push(Span::styled(
+                format!(" {}ms", s.ms / s.n.max(1) as u64),
+                dim(),
+            ));
+        }
+        lines.push(Line::from(spans));
+    }
     let title = if view == View::All {
         "Weak keys, text".to_string()
     } else {
@@ -255,10 +274,11 @@ fn draw_weak(f: &mut Frame, area: Rect, app: &App, view: View) {
 }
 
 fn draw_decks(f: &mut Frame, area: Rect, app: &App) {
-    let lines: Vec<Line> = Deck::ALL
-        .iter()
-        .map(|&d| {
-            let (k, n) = known(CARDS, &app.progress.boxes, d);
+    let lines: Vec<Line> = app
+        .decks()
+        .into_iter()
+        .map(|d| {
+            let (k, n) = known(&app.cards, &app.progress.boxes, d);
             let mut spans = vec![Span::raw(format!(" {:<16}", d.label()))];
             spans.extend(bar((k * 24).checked_div(n).unwrap_or(0), 24, super::GOOD));
             spans.push(Span::styled(format!("  {k}/{n} learned"), dim()));

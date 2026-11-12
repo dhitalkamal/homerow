@@ -1,4 +1,5 @@
 // the settings tab's rows and what each key does to them. no drawing here.
+use crate::baseline::Length;
 use crate::store::{Density, Progress};
 
 // kitty zoom steps: 1x (normal), 2x, 3x
@@ -18,9 +19,13 @@ pub enum Item {
     Zoom,
     Size,
     Goal,
+    TestLength,
+    Punctuation,
+    Numbers,
+    Ghost,
 }
 
-pub const ITEMS: [Item; 9] = [
+pub const ITEMS: [Item; 13] = [
     Item::Keyboard,
     Item::Hands,
     Item::FingerColors,
@@ -30,6 +35,10 @@ pub const ITEMS: [Item; 9] = [
     Item::Zoom,
     Item::Size,
     Item::Goal,
+    Item::TestLength,
+    Item::Punctuation,
+    Item::Numbers,
+    Item::Ghost,
 ];
 
 impl Item {
@@ -44,6 +53,10 @@ impl Item {
             Item::Zoom => "zoom (kitty)",
             Item::Size => "size",
             Item::Goal => "daily goal",
+            Item::TestLength => "test length",
+            Item::Punctuation => "punctuation",
+            Item::Numbers => "numbers",
+            Item::Ghost => "race your best",
         }
     }
 
@@ -53,6 +66,12 @@ impl Item {
         }
         if self == Item::Zoom {
             return format!("{}x", p.settings.zoom.clamp(1, MAX_ZOOM));
+        }
+        if self == Item::TestLength {
+            return match p.settings.test {
+                Length::Time(s) => format!("{s} seconds"),
+                Length::Words(w) => format!("{w} words"),
+            };
         }
         if self == Item::Goal {
             return match p.settings.goal_min {
@@ -68,7 +87,10 @@ impl Item {
             Item::Heatmap => s.heatmap,
             Item::HideLabels => s.hide_labels,
             Item::BigText => s.big_text,
-            Item::Zoom | Item::Size | Item::Goal => false,
+            Item::Punctuation => s.punctuation,
+            Item::Numbers => s.numbers,
+            Item::Ghost => s.ghost,
+            Item::Zoom | Item::Size | Item::Goal | Item::TestLength => false,
         };
         if on { "on" } else { "off" }.to_string()
     }
@@ -84,12 +106,19 @@ fn switch(item: Item, p: &mut Progress) -> Option<&mut bool> {
         Item::Heatmap => &mut s.heatmap,
         Item::HideLabels => &mut s.hide_labels,
         Item::BigText => &mut s.big_text,
-        Item::Zoom | Item::Size | Item::Goal => return None,
+        Item::Punctuation => &mut s.punctuation,
+        Item::Numbers => &mut s.numbers,
+        Item::Ghost => &mut s.ghost,
+        Item::Zoom | Item::Size | Item::Goal | Item::TestLength => return None,
     })
 }
 
 // space or return: flip a switch, or cycle the size round
 pub fn toggle(item: Item, p: &mut Progress) {
+    if item == Item::TestLength {
+        p.settings.test = p.settings.test.step(true);
+        return;
+    }
     if item == Item::Goal {
         let g = p.settings.goal_min;
         p.settings.goal_min = GOAL_PRESETS.iter().copied().find(|m| *m > g).unwrap_or(0);
@@ -116,6 +145,10 @@ pub fn toggle(item: Item, p: &mut Progress) {
 // right turns a switch on or makes size bigger, left the opposite.
 // from auto, size steps from whatever auto shows at this terminal size.
 pub fn adjust(item: Item, p: &mut Progress, right: bool, screen: (u16, u16)) {
+    if item == Item::TestLength {
+        p.settings.test = p.settings.test.step(right);
+        return;
+    }
     if item == Item::Goal {
         let g = p.settings.goal_min;
         p.settings.goal_min = if right {
@@ -218,5 +251,26 @@ mod tests {
             adjust(Item::Goal, &mut p, true, (100, 40));
         }
         assert_eq!(p.settings.goal_min, MAX_GOAL);
+    }
+
+    #[test]
+    fn test_length_row_steps_through_the_lengths() {
+        use crate::baseline::Length;
+        let mut p = Progress::default();
+        assert_eq!(Item::TestLength.value(&p), "60 seconds");
+        toggle(Item::TestLength, &mut p);
+        assert_eq!(p.settings.test, Length::Time(120));
+        adjust(Item::TestLength, &mut p, true, (100, 40));
+        assert_eq!(Item::TestLength.value(&p), "25 words");
+        toggle(Item::Punctuation, &mut p);
+        assert!(p.settings.punctuation);
+    }
+
+    #[test]
+    fn ghost_is_on_by_default_and_can_be_switched_off() {
+        let mut p = Progress::default();
+        assert_eq!(Item::Ghost.value(&p), "on");
+        toggle(Item::Ghost, &mut p);
+        assert!(!p.settings.ghost);
     }
 }

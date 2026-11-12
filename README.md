@@ -60,19 +60,42 @@ characters a US keyboard cannot type are skipped.
 
 Tab cycles through them, Esc quits.
 
-- baseline: random common words for 60 seconds. Use it to track your WPM.
-- weak keys: words built around your 3 slowest or most missed letters.
+- baseline: a typing test on common words. On the settings tab pick the length
+  (15, 30, 60 or 120 seconds, or 25, 50 or 100 words) and switch on punctuation
+  (sentences with capitals, commas and full stops) or numbers. Each round is
+  filed under its test, like "30s +punct", and only compared with the same test.
+
+Race your best: once you have a best for a mode and test, a ghost runs through
+the text at that pace (a gray block on the letter it has reached) and the stats
+line shows "ghost 41: +6" when you are ahead or "-4" when behind. Switch it off
+with the "race your best" row on the settings tab.
+- weak keys: words built around your 3 slowest or most missed letters and your
+  2 slowest letter pairs (like "ng" or "er"), shown on the stats line.
 - code: short real snippets (Python, Go, Rust, TypeScript, SQL, shell, git).
   Indentation after Return is typed for you.
 - mistakes: drills the words you got wrong in the other modes, weighted by how
   often you missed them. Typing a word cleanly (in any mode) counts it down, so
   fixed words drop off the list.
-- shortcuts: flash cards for text editing, macOS, Finder, zsh and IntelliJ.
+- lessons: learn touch typing key by key. You start with the home row
+  (f j d k s l a ;); a lesson round with 95% accuracy and 20 wpm unlocks the
+  next key (g h e i r u t n o c w m v b p y x q z). Lessons use only keys you
+  have unlocked, as letter groups at first and real words once there are
+  enough, with the newest key coming up often. The keyboard and hands always
+  show here so you can see where the new key is.
+- daily: the daily challenge. The same 50 words for everyone on the same
+  version that day (picked from the UTC date, no server), so you can compare
+  wpm with friends. Retry as often as you like; the stats line shows your best
+  today, and the ghost races it.
+- shortcuts: flash cards for text editing, macOS, Finder, zsh, IntelliJ,
+  VS Code, Chrome / Arc, tmux (default ctrl+b prefix) and vim. Key sequences
+  like tmux's ctrl+b then c, or vim's g g and c i w, are graded step by step
+  ("keep going: 1 of 2 keys"); a wrong step starts the card over.
 - progress: one view per mode (left/right switches between all modes,
   baseline, weak keys and code). Each view shows where you are now (average of
   the last 3 rounds), first round to now, best speed, accuracy, a speed trend
   (one line per mode) and that mode's weak keys. Code tracks symbols and digits
-  too. Shortcut deck progress sits underneath.
+  too, and the text views list your slowest letter pairs. Shortcut deck
+  progress sits underneath.
   Return opens the round history for the current view: every round with when,
   mode, wpm and accuracy, newest first, scrolled with up/down.
 
@@ -95,6 +118,68 @@ Text and keycaps use your terminal's own colors, so they follow your theme.
 Each letter on the keyboard is tinted by the finger that presses it (8 fixed
 colors, so no theme can merge two fingers), the next key fills with that color,
 and the line under the keyboard names the finger.
+
+## share card
+
+On any results screen press c to copy a short card for friends:
+
+    homerow daily 2026-11-07: 52 wpm, 97% accuracy
+    streak 4 days, try it: github.com/dhitalkamal/homerow
+
+It uses your system clipboard tool (pbcopy on macOS, wl-copy, xclip or xsel on
+Linux, clip on Windows), run directly without a shell. Without one it falls
+back to the terminal clipboard code (OSC 52), which kitty, iTerm2, WezTerm and
+many others support.
+
+## github badge
+
+Show your typing speed on your GitHub profile:
+
+    homerow login --token
+
+homerow prints a link to GitHub's new-token page with only the `gist` scope
+ticked (https://github.com/settings/tokens/new?scopes=gist&description=homerow).
+Generate the token there, copy it, and paste it at homerow's hidden prompt.
+The `gist` scope lets homerow create and edit your gists, nothing else on your
+account. homerow makes one secret gist that holds the badge and prints a line
+for your profile README:
+
+    [![typing speed](https://img.shields.io/endpoint?url=...)](https://github.com/dhitalkamal/homerow)
+
+You can also pipe the token in, like `cat token.txt | homerow login --token`.
+Never put the token on the command line itself: it would stay in your shell
+history, so homerow refuses it there.
+
+Plain `homerow login` signs in through the browser instead (a one-time code
+you approve at github.com/login/device, same `gist` scope, no token to copy).
+It needs homerow's GitHub OAuth app, which is not registered yet, so for now
+it points you to `homerow login --token`.
+
+homerow checks what a classic token may do and refuses one with any scope
+beyond `gist` (like `repo`), since a token that can change your repositories
+should not sit in a typing app's keychain entry. Fine-grained tokens do not
+report their permissions, so homerow accepts them and reminds you to give them
+only the Gists permission (read and write). When a token expires,
+`homerow sync` tells you; run `homerow login --token` again with a new one.
+
+The badge shows your recent baseline speed, the average of your last 3
+baseline rounds, like "typing 52 wpm". It updates when you quit homerow, and
+only when the number changed. A quit without internet stays silent and tries
+again next time. `homerow sync` updates it right away and says what went wrong
+if something did. GitHub and shields.io cache the badge for a few minutes.
+
+The GitHub token is kept in your system keychain (macOS Keychain, Windows
+Credential Manager, or the Secret Service on Linux, such as GNOME Keyring or
+KWallet), never in a file. `github.json` next to your progress file only says
+which gist holds the badge. On macOS the keychain may ask for permission again
+after homerow is updated, since the binary is not Apple signed; Always Allow
+stops the question until the next update.
+
+`homerow logout` removes the token and that file. The gist stays on GitHub
+(the logout message links to it, delete it there if you like), and
+https://github.com/settings/applications revokes homerow's access completely.
+Secret gists are unlisted, not private: anyone with the link can see the badge
+file, which is what a badge is for.
 
 ## daily goal
 
@@ -156,6 +241,26 @@ Ghostty with the kitty keyboard protocol). ctrl and the + key works too.
 Shortcut keys: press the real combo. Space shows the answer (counts as a miss).
 `[` and `]` change deck. A card is learned after 3 right answers in a row.
 
+## your own decks
+
+Write your own shortcuts in `~/.config/homerow/decks.txt` (or pass
+`--decks PATH`) and they show up as decks on the shortcuts tab and the
+progress tab:
+
+    # lines starting with # are comments
+    [Figma]
+    Duplicate selection = cmd+D
+    Group selection = cmd+G
+    Zoom to fit = shift+1
+
+    [tmux]
+    New window = ctrl+a c
+
+Keys use the same names as the built-in cards (cmd, opt, ctrl, shift, Left,
+Up, Back, Enter, Esc, Tab, Space, F1-F12); separate steps with spaces for
+sequences like `ctrl+a c`. Keys a terminal never sees become recall cards.
+Bad lines are skipped and the first one is shown at the bottom of the screen.
+
 ## recall cards
 
 Some shortcuts never reach a terminal app because macOS or the terminal takes
@@ -185,7 +290,8 @@ after every round and card. An unreadable file is moved aside as
     cargo fmt --check
 
 Logic lives in pure modules with tests (stats, session, cards, content, store,
-app, input). `ui/` only draws, `main.rs` runs the event loop.
+app, input, github, account). account.rs runs the github flows against small
+traits, so tests use fakes and never touch the network or your keychain. `ui/` only draws, `main.rs` runs the event loop.
 
 ## license
 

@@ -357,6 +357,7 @@ fn progress_views_keep_each_mode_separate() {
                 wpm,
                 acc: 96,
                 at_ms: NOW,
+                test: None,
             },
             60_000,
         );
@@ -387,6 +388,7 @@ fn results_screen_best_is_for_the_same_mode() {
             wpm: 99,
             acc: 98,
             at_ms: NOW - 100_000,
+            test: None,
         },
         60_000,
     );

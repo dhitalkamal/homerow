@@ -23,6 +23,7 @@ pub fn progress(now: u64) -> Progress {
                 wpm,
                 acc: 93 + rng.below(7) as u32,
                 at_ms: now - d * DAY - (3 - i) * HOUR,
+                test: None,
             };
             // 3 rounds of 6 minutes: each demo day meets the default 15 minute goal
             p.add_round(round, 6 * 60_000);
@@ -62,6 +63,24 @@ pub fn progress(now: u64) -> Progress {
                 n: 30,
                 e,
                 ms: 30 * avg,
+            },
+        );
+    }
+    // letter pairs: most are quick, a few common ones drag
+    for (pair, e, avg) in [
+        ("th", 1, 180),
+        ("he", 0, 170),
+        ("in", 1, 190),
+        ("er", 2, 260),
+        ("ng", 6, 420),
+        ("ou", 3, 300),
+    ] {
+        p.pairs.insert(
+            pair.into(),
+            KeyStat {
+                n: 40,
+                e,
+                ms: 40 * avg,
             },
         );
     }
@@ -111,6 +130,8 @@ mod tests {
         let weak = weak_letters(&crate::history::merged(&p, &["base", "keys"]), 3);
         assert!(weak.contains(&'q') && weak.contains(&'z'), "{weak:?}");
         assert!(streak(&p.days, NOW) >= 5);
+        let pairs = crate::stats::weak_pairs(&p.pairs, 2);
+        assert_eq!(pairs.first().map(String::as_str), Some("ng"), "{pairs:?}");
     }
 
     #[test]

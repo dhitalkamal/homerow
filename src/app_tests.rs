@@ -1,15 +1,15 @@
 // behavior tests for App: modes, rounds, shortcut cards, toggles
 use super::*;
 
-fn app() -> (App, tempfile::TempDir) {
+pub(super) fn app() -> (App, tempfile::TempDir) {
     let dir = tempfile::tempdir().unwrap();
     let a = App::new(dir.path().join("p.json"), 42);
     (a, dir)
 }
-fn combo(s: &str) -> Input {
+pub(super) fn combo(s: &str) -> Input {
     Input::Combo(cards::parse(s).unwrap())
 }
-fn type_all(a: &mut App, start: u64) -> u64 {
+pub(super) fn type_all(a: &mut App, start: u64) -> u64 {
     let text: String = a.session.text.iter().collect();
     let mut t = start;
     for ch in text.chars().collect::<Vec<_>>() {
@@ -24,18 +24,18 @@ fn type_all(a: &mut App, start: u64) -> u64 {
     }
     t
 }
-fn go(a: &mut App, mode: Mode) {
+pub(super) fn go(a: &mut App, mode: Mode) {
     while a.mode != mode {
         a.handle(Input::Tab, 0);
     }
 }
-fn key(k: cards::Key) -> Input {
+pub(super) fn key(k: cards::Key) -> Input {
     Input::Combo(cards::Combo {
         mods: cards::Mods::default(),
         key: k,
     })
 }
-fn set_card(a: &mut App, combo: &str) {
+pub(super) fn set_card(a: &mut App, combo: &str) {
     a.card = CARDS.iter().position(|c| c.combo == combo).unwrap();
     a.card_state = CardState::Ask;
 }
@@ -165,8 +165,9 @@ fn brackets_cycle_the_deck_filter() {
     a.handle(Input::Text('['), 0);
     assert_eq!(a.deck, None);
     a.handle(Input::Text('['), 0);
-    assert_eq!(a.deck, Some(Deck::Idea));
-    assert_eq!(CARDS[a.card].deck, Deck::Idea);
+    let last = *Deck::ALL.last().unwrap();
+    assert_eq!(a.deck, Some(last), "wraps to the last deck");
+    assert_eq!(CARDS[a.card].deck, last);
 }
 
 #[test]
@@ -333,98 +334,62 @@ fn settings_zoom_row_does_nothing_without_kitty_support() {
 }
 
 #[test]
-fn left_and_right_switch_the_progress_view() {
-    use crate::history::View;
+fn sequence_cards_are_graded_step_by_step() {
     let (mut a, _d) = app();
-    go(&mut a, Mode::Progress);
-    assert_eq!(a.progress_view, View::All);
-    a.handle(key(cards::Key::Right), 0);
-    assert_eq!(a.progress_view, View::Base);
-    a.handle(key(cards::Key::Left), 0);
-    a.handle(key(cards::Key::Left), 0);
-    assert_eq!(
-        a.progress_view,
-        View::Mistakes,
-        "wraps around to the last view"
-    );
+    a.mode = Mode::Cards;
+    set_card(&mut a, "ctrl+b c");
+    let id = CARDS[a.card].id();
+    a.handle(combo("ctrl+b"), 0);
+    assert_eq!((a.card_state.clone(), a.seq_pos), (CardState::Ask, 1));
+    a.handle(Input::Text('c'), 10);
+    assert!(matches!(a.card_state, CardState::Done(_)));
+    assert_eq!(a.progress.boxes[&id], 1);
 }
 
 #[test]
-fn typing_records_key_stats_under_the_current_mode() {
+fn a_wrong_step_resets_the_sequence() {
     let (mut a, _d) = app();
-    go(&mut a, Mode::Code);
-    let first = a.session.next_char().unwrap();
-    a.handle(Input::Text(first), 0);
-    assert!(a.progress.mode_stats.contains_key("code"));
-    assert!(!a.progress.mode_stats.contains_key("base"));
-}
-
-#[test]
-fn finishing_a_round_records_missed_words_and_counts_down_clean_ones() {
-    let (mut a, _d) = app();
-    go(&mut a, Mode::Keys);
-    a.progress.note_mistake("cat");
-    a.progress.note_mistake("cat");
-    a.session = crate::session::Session::new("the cat", None);
-    a.handle(Input::Text('t'), 0);
+    a.mode = Mode::Cards;
+    set_card(&mut a, "ctrl+b c");
+    a.handle(combo("ctrl+b"), 0);
     a.handle(Input::Text('x'), 10);
-    for (i, c) in "he cat".chars().enumerate() {
-        a.handle(Input::Text(c), 100 + i as u64 * 100);
-    }
-    assert!(a.session.is_done());
-    assert_eq!(a.progress.mistakes.get("the"), Some(&1));
-    assert_eq!(
-        a.progress.mistakes.get("cat"),
-        Some(&1),
-        "typed cleanly once"
+    assert!(matches!(a.card_state, CardState::Retry(Some(_))));
+    assert_eq!(a.seq_pos, 0);
+    assert_eq!(a.progress.boxes[&CARDS[a.card].id()], 0);
+}
+
+#[test]
+fn bracket_mid_sequence_is_a_key_not_a_deck_change() {
+    let (mut a, _d) = app();
+    a.mode = Mode::Cards;
+    set_card(&mut a, "ctrl+b [");
+    let deck = a.deck;
+    a.handle(combo("ctrl+b"), 0);
+    a.handle(Input::Text('['), 10);
+    assert!(
+        matches!(a.card_state, CardState::Done(_)),
+        "{:?}",
+        a.card_state
     );
+    assert_eq!(a.deck, deck);
 }
 
 #[test]
-fn mistakes_tab_drills_the_missed_words() {
+fn custom_decks_join_the_deck_switch_and_grade_like_any_card() {
+    use crate::deckfile::{Entry, to_cards};
     let (mut a, _d) = app();
-    for _ in 0..3 {
-        a.progress.note_mistake("their");
-    }
-    go(&mut a, Mode::Mistakes);
-    let text: String = a.session.text.iter().collect();
-    assert!(text.split(' ').all(|w| w == "their"), "{text}");
-    assert!(!text.is_empty());
-}
-
-#[test]
-fn return_toggles_round_history_and_arrows_scroll_it() {
-    let (mut a, _d) = app();
-    for wpm in [30, 31, 32, 33, 34] {
-        a.progress.add_round(
-            store::Round {
-                mode: "base".into(),
-                wpm,
-                acc: 95,
-                at_ms: 0,
-            },
-            60_000,
-        );
-    }
-    go(&mut a, Mode::Progress);
-    assert!(!a.show_history);
-    a.handle(Input::Text('\n'), 0);
-    assert!(a.show_history);
-    a.handle(key(cards::Key::Down), 0);
-    a.handle(key(cards::Key::Down), 0);
-    assert_eq!(a.history_scroll, 2);
-    for _ in 0..5 {
-        a.handle(key(cards::Key::Up), 0);
-    }
-    assert_eq!(a.history_scroll, 0);
-}
-
-#[test]
-fn code_tab_types_your_own_file_when_one_is_loaded() {
-    let (mut a, _d) = app();
-    a.own = vec!["let total = add(1, 2);".to_string()];
-    a.own_name = Some("main.rs".to_string());
-    go(&mut a, Mode::Code);
-    let text: String = a.session.text.iter().collect();
-    assert_eq!(text, "let total = add(1, 2);");
+    a.add_cards(to_cards(vec![Entry {
+        deck: "Figma".into(),
+        action: "Duplicate".into(),
+        keys: "cmd+D".into(),
+    }]));
+    let figma = a.decks().last().copied().unwrap();
+    assert_eq!(figma.label(), "Figma");
+    a.mode = Mode::Cards;
+    a.handle(Input::Text('['), 0);
+    assert_eq!(a.deck, Some(figma), "wraps back to the custom deck");
+    assert_eq!(a.cards[a.card].action, "Duplicate");
+    a.handle(combo("cmd+D"), 0);
+    assert!(matches!(a.card_state, CardState::Done(_)));
+    assert_eq!(a.progress.boxes["my:figma:cmd+d"], 1);
 }
