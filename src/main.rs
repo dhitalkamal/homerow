@@ -1,17 +1,22 @@
+mod account;
 mod app;
 mod baseline;
 mod brand;
 mod cards;
 mod cli;
 mod clipboard;
+mod commands;
 mod content;
 mod daily;
 mod deckfile;
 mod decks;
 mod demo;
+mod github;
 mod history;
 mod input;
+mod keychain;
 mod lessons;
+mod net;
 mod rng;
 mod session;
 mod settings;
@@ -74,7 +79,8 @@ fn now_ms() -> u64 {
 
 const HELP: &str = "homerow - typing and mac shortcut trainer
 
-usage: homerow [--demo] [--file PATH]
+usage: homerow [--demo] [--file PATH] [--decks PATH]
+       homerow login [--token] | sync | logout
 
   --demo        start with two weeks of sample progress, kept in a temp file.
                 your real progress is not read or changed.
@@ -82,6 +88,15 @@ usage: homerow [--demo] [--file PATH]
                 time.
   --decks       your own shortcut decks from PATH (default
                 ~/.config/homerow/decks.txt when it exists).
+
+  login         sign in with github and put a typing speed badge on your
+                profile (a secret gist holds it, the login sits in your
+                system keychain).
+  login --token same, with a token you make on github (gist scope only)
+                instead of the browser sign-in. it is pasted at a hidden
+                prompt, never typed on the command line.
+  sync          update the badge now; it also updates when you quit.
+  logout        forget the github login on this computer.
 
 keys: tab switches mode, esc quits.
 progress: ~/.local/share/homerow/progress.json";
@@ -98,6 +113,9 @@ fn main() -> io::Result<()> {
     if args.help {
         println!("{HELP}");
         return Ok(());
+    }
+    if let Some(cmd) = args.command {
+        std::process::exit(commands::run(cmd));
     }
     // load your own file before the screen takes over, so errors are readable
     let own = match &args.file {
@@ -158,6 +176,7 @@ fn main() -> io::Result<()> {
     ratatui::restore();
     if !args.demo {
         println!("progress saved to {}", path.display());
+        commands::sync_on_quit(&path, &app.progress);
     } else {
         // demo data is throwaway, clean it up
         let _ = std::fs::remove_file(&path);

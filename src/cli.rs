@@ -1,15 +1,60 @@
-// command line options: --demo, --file PATH, --decks PATH, --help
+// command line: the github commands (login, logout, sync) or the trainer's
+// options --demo, --file PATH, --decks PATH, --help
 use std::path::PathBuf;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Command {
+    Login,
+    // login with a pasted github token instead of the device flow
+    LoginToken,
+    Logout,
+    Sync,
+}
 
 #[derive(Debug, Default, PartialEq)]
 pub struct Args {
+    pub command: Option<Command>,
     pub demo: bool,
     pub file: Option<PathBuf>,
     pub decks: Option<PathBuf>,
     pub help: bool,
 }
 
+fn command(word: &str) -> Option<Command> {
+    match word {
+        "login" => Some(Command::Login),
+        "logout" => Some(Command::Logout),
+        "sync" => Some(Command::Sync),
+        _ => None,
+    }
+}
+
 pub fn parse(args: &[String]) -> Result<Args, String> {
+    // a command comes first and is the whole command line. only the first
+    // word counts, so `--file login` still means a file named login.
+    if let Some((word, cmd)) = args.first().and_then(|a| Some((a, command(a)?))) {
+        if cmd == Command::Login && args.get(1).map(String::as_str) == Some("--token") {
+            if args.len() > 2 {
+                // a token typed here would stay in your shell history
+                return Err(
+                    "never put the token on the command line, it stays in your shell history. \
+                     run: homerow login --token, then paste it when asked"
+                        .to_string(),
+                );
+            }
+            return Ok(Args {
+                command: Some(Command::LoginToken),
+                ..Args::default()
+            });
+        }
+        if args.len() > 1 {
+            return Err(format!("{word} takes no options"));
+        }
+        return Ok(Args {
+            command: Some(cmd),
+            ..Args::default()
+        });
+    }
     let mut out = Args::default();
     let mut it = args.iter();
     while let Some(a) = it.next() {
@@ -68,6 +113,56 @@ mod tests {
         assert_eq!(
             p(&["--bogus"]),
             Err("unknown option --bogus, see homerow --help".to_string())
+        );
+    }
+
+    #[test]
+    fn github_commands() {
+        assert_eq!(p(&["login"]).unwrap().command, Some(Command::Login));
+        assert_eq!(p(&["logout"]).unwrap().command, Some(Command::Logout));
+        assert_eq!(p(&["sync"]).unwrap().command, Some(Command::Sync));
+        assert_eq!(p(&[]).unwrap().command, None);
+    }
+
+    #[test]
+    fn commands_stand_alone() {
+        assert_eq!(
+            p(&["login", "--demo"]),
+            Err("login takes no options".to_string())
+        );
+        assert_eq!(
+            p(&["sync", "login"]),
+            Err("sync takes no options".to_string())
+        );
+        assert_eq!(
+            p(&["--demo", "sync"]),
+            Err("unknown option sync, see homerow --help".to_string())
+        );
+    }
+
+    #[test]
+    fn login_with_a_pasted_token() {
+        assert_eq!(
+            p(&["login", "--token"]).unwrap().command,
+            Some(Command::LoginToken)
+        );
+        let e = p(&["login", "--token", "ghp_abc"]).unwrap_err();
+        assert!(e.contains("shell history"), "{e}");
+        assert_eq!(
+            p(&["sync", "--token"]),
+            Err("sync takes no options".to_string())
+        );
+        assert_eq!(
+            p(&["--token"]),
+            Err("unknown option --token, see homerow --help".to_string())
+        );
+    }
+
+    #[test]
+    fn a_file_named_like_a_command_is_still_a_file() {
+        assert_eq!(
+            p(&["--file", "login"]).unwrap().file,
+            Some(PathBuf::from("login"))
         );
     }
 
