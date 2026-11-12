@@ -678,19 +678,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
-name = "homerow"
-version = "0.2.0"
-dependencies = [
- "keyring",
- "ratatui",
- "serde",
- "serde_json",
- "tempfile",
- "tui-big-text",
- "ureq",
-]
-
-[[package]]
 name = "http"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -794,6 +781,19 @@ dependencies = [
  "security-framework 3.7.0",
  "windows-sys 0.60.2",
  "zeroize",
+]
+
+[[package]]
+name = "keyup"
+version = "0.2.0"
+dependencies = [
+ "keyring",
+ "ratatui",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tui-big-text",
+ "ureq",
 ]
 
 [[package]]

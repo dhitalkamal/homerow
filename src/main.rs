@@ -11,11 +11,13 @@ mod daily;
 mod deckfile;
 mod decks;
 mod demo;
+mod dirs;
 mod github;
 mod history;
 mod input;
 mod keychain;
 mod lessons;
+mod migrate;
 mod net;
 mod rng;
 mod session;
@@ -38,12 +40,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 // where your deck file lives unless --decks says otherwise
 fn default_decks_path() -> std::path::PathBuf {
-    let base = std::env::var_os("XDG_CONFIG_HOME")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| {
-            std::path::PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".config")
-        });
-    base.join(brand::NAME).join("decks.txt")
+    dirs::config_dir(brand::NAME).join("decks.txt")
 }
 
 // cards from your deck file plus a note about skipped lines. a missing
@@ -71,23 +68,43 @@ fn load_decks(explicit: Option<&std::path::Path>) -> (Vec<cards::Card>, Option<S
     (deckfile::to_cards(entries), note)
 }
 
+// first start after the rename: bring the old name's files and github login
+// over once. a copy that fails stops here, before anything saves fresh
+// progress into the new folder and hides the old one for good.
+fn carry_over() {
+    let places = migrate::Places {
+        old_data: dirs::data_dir(brand::OLD_NAME),
+        new_data: dirs::data_dir(brand::NAME),
+        old_config: dirs::config_dir(brand::OLD_NAME),
+        new_config: dirs::config_dir(brand::NAME),
+    };
+    let keys = || -> migrate::Keys {
+        let old = keychain::Keychain::named(brand::OLD_NAME)?;
+        Ok((Box::new(old), Box::new(keychain::Keychain::new()?)))
+    };
+    if let Err(e) = migrate::run(&places, keys, &mut |line| println!("{line}")) {
+        eprintln!("{e}");
+        std::process::exit(1);
+    }
+}
+
 fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_millis() as u64)
 }
 
-const HELP: &str = "homerow - typing and mac shortcut trainer
+const HELP: &str = "keyup - typing and mac shortcut trainer
 
-usage: homerow [--demo] [--file PATH] [--decks PATH]
-       homerow login [--token] | sync | logout
+usage: keyup [--demo] [--file PATH] [--decks PATH]
+       keyup login [--token] | sync | logout
 
   --demo        start with two weeks of sample progress, kept in a temp file.
                 your real progress is not read or changed.
   -f, --file    type your own text: the code tab uses PATH, a few lines at a
                 time.
   --decks       your own shortcut decks from PATH (default
-                ~/.config/homerow/decks.txt when it exists).
+                ~/.config/keyup/decks.txt when it exists).
 
   login         sign in with github and put a typing speed badge on your
                 profile (a secret gist holds it, the login sits in your
@@ -99,7 +116,7 @@ usage: homerow [--demo] [--file PATH] [--decks PATH]
   logout        forget the github login on this computer.
 
 keys: tab switches mode, esc quits.
-progress: ~/.local/share/homerow/progress.json";
+progress: ~/.local/share/keyup/progress.json";
 
 fn main() -> io::Result<()> {
     let raw: Vec<String> = std::env::args().skip(1).collect();
@@ -114,6 +131,9 @@ fn main() -> io::Result<()> {
         println!("{HELP}");
         return Ok(());
     }
+    if !args.demo {
+        carry_over();
+    }
     if let Some(cmd) = args.command {
         std::process::exit(commands::run(cmd));
     }
@@ -125,8 +145,9 @@ fn main() -> io::Result<()> {
                 let chunks = content::own_text(&text);
                 if chunks.is_empty() {
                     eprintln!(
-                        "{} has no lines homerow can use (blank, or characters a us keyboard cannot type)",
-                        p.display()
+                        "{} has no lines {} can use (blank, or characters a us keyboard cannot type)",
+                        p.display(),
+                        brand::NAME
                     );
                     std::process::exit(2);
                 }
@@ -139,7 +160,8 @@ fn main() -> io::Result<()> {
         },
     };
     let path = if args.demo {
-        let p = std::env::temp_dir().join(format!("homerow-demo-{}.json", std::process::id()));
+        let p =
+            std::env::temp_dir().join(format!("{}-demo-{}.json", brand::NAME, std::process::id()));
         store::save(&p, &demo::progress(now_ms()))?;
         p
     } else {
