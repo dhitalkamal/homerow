@@ -78,7 +78,10 @@ fn draw_header(f: &mut Frame, area: Rect, app: &App) {
         tabs.push(Span::styled(m.label(), style));
     }
     let [left, mid] = Layout::horizontal([Constraint::Length(12), Constraint::Min(0)]).areas(area);
-    f.render_widget(Paragraph::new(Span::styled("home row", bold())), left);
+    f.render_widget(
+        Paragraph::new(Span::styled(crate::brand::NAME, bold())),
+        left,
+    );
     f.render_widget(
         Paragraph::new(Line::from(tabs)).alignment(Alignment::Center),
         mid,

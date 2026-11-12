@@ -4,7 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-const ASSET: &str = "homerow-aarch64-apple-darwin.tar.gz";
+const ASSET: &str = "keyup-aarch64-apple-darwin.tar.gz";
 
 fn script() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("install.sh")
@@ -14,25 +14,16 @@ fn script() -> PathBuf {
 fn fake_release(dir: &Path, tamper: bool) {
     let stage = dir.join("stage");
     fs::create_dir_all(&stage).unwrap();
-    fs::write(
-        stage.join("homerow"),
-        "#!/bin/sh\necho homerow test build\n",
-    )
-    .unwrap();
+    fs::write(stage.join("keyup"), "#!/bin/sh\necho keyup test build\n").unwrap();
     run(
         "chmod",
-        &["755", stage.join("homerow").to_str().unwrap()],
+        &["755", stage.join("keyup").to_str().unwrap()],
         &stage,
     );
     fs::write(stage.join("LICENSE"), "MIT\n").unwrap();
     run(
         "tar",
-        &[
-            "czf",
-            dir.join(ASSET).to_str().unwrap(),
-            "homerow",
-            "LICENSE",
-        ],
+        &["czf", dir.join(ASSET).to_str().unwrap(), "keyup", "LICENSE"],
         &stage,
     );
     let sum = run("shasum", &["-a", "256", ASSET], dir);
@@ -57,7 +48,7 @@ fn run(cmd: &str, args: &[&str], cwd: &Path) -> Output {
     out
 }
 
-// runs install.sh with a clean PATH so a real cargo or homerow is never used
+// runs install.sh with a clean PATH so a real cargo or keyup is never used
 fn install(release: &Path, bin: &Path, platform: &str) -> Output {
     install_with(release, bin, platform, &[])
 }
@@ -69,9 +60,9 @@ fn install_with(release: &Path, bin: &Path, platform: &str, extra: &[(&str, &str
         .env_clear()
         .env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")
         .env("HOME", release)
-        .env("HOMEROW_BASE_URL", format!("file://{}", release.display()))
-        .env("HOMEROW_INSTALL_DIR", bin)
-        .env("HOMEROW_PLATFORM", platform);
+        .env("KEYUP_BASE_URL", format!("file://{}", release.display()))
+        .env("KEYUP_INSTALL_DIR", bin)
+        .env("KEYUP_PLATFORM", platform);
     for (k, v) in extra {
         cmd.env(k, v);
     }
@@ -93,12 +84,12 @@ fn installs_the_release_binary_on_apple_silicon() {
     let bin = t.path().join("bin");
     let out = install(t.path(), &bin, "Darwin-arm64");
     assert!(out.status.success(), "{}", text(&out));
-    let ran = Command::new(bin.join("homerow")).output().unwrap();
+    let ran = Command::new(bin.join("keyup")).output().unwrap();
     assert_eq!(
         String::from_utf8_lossy(&ran.stdout).trim(),
-        "homerow test build"
+        "keyup test build"
     );
-    assert!(text(&out).contains("installed homerow"), "{}", text(&out));
+    assert!(text(&out).contains("installed keyup"), "{}", text(&out));
 }
 
 #[test]
@@ -107,12 +98,12 @@ fn checksum_mismatch_installs_nothing_and_keeps_the_old_version() {
     fake_release(t.path(), true);
     let bin = t.path().join("bin");
     fs::create_dir_all(&bin).unwrap();
-    fs::write(bin.join("homerow"), "old version").unwrap();
+    fs::write(bin.join("keyup"), "old version").unwrap();
     let out = install(t.path(), &bin, "Darwin-arm64");
     assert!(!out.status.success());
     assert!(text(&out).contains("checksum"), "{}", text(&out));
     assert_eq!(
-        fs::read_to_string(bin.join("homerow")).unwrap(),
+        fs::read_to_string(bin.join("keyup")).unwrap(),
         "old version"
     );
 }
@@ -123,7 +114,7 @@ fn unsupported_platform_without_cargo_explains_how_to_get_rust() {
     let out = install(t.path(), &t.path().join("bin"), "Linux-x86_64");
     assert!(!out.status.success());
     assert!(text(&out).contains("rustup"), "{}", text(&out));
-    assert!(!t.path().join("bin").join("homerow").exists());
+    assert!(!t.path().join("bin").join("keyup").exists());
 }
 
 #[test]
@@ -149,7 +140,7 @@ fn zsh_profile_gets_the_path_line_once() {
     let rc = fs::read_to_string(t.path().join(".zshrc")).unwrap();
     assert_eq!(rc.matches(bin.to_str().unwrap()).count(), 1, "{rc}");
     assert!(
-        rc.contains("export PATH=") && rc.contains("homerow installer"),
+        rc.contains("export PATH=") && rc.contains("keyup installer"),
         "{rc}"
     );
 }
@@ -195,7 +186,7 @@ fn opt_out_and_unknown_shells_leave_profiles_alone() {
         t.path(),
         &bin,
         "Darwin-arm64",
-        &[("SHELL", "/bin/zsh"), ("HOMEROW_NO_MODIFY_PATH", "1")],
+        &[("SHELL", "/bin/zsh"), ("KEYUP_NO_MODIFY_PATH", "1")],
     );
     assert!(!t.path().join(".zshrc").exists());
     assert!(text(&out).contains("export PATH="), "{}", text(&out));
@@ -216,4 +207,56 @@ fn folder_already_on_path_changes_nothing() {
         &[("SHELL", "/bin/zsh"), ("PATH", &path)],
     );
     assert!(!t.path().join(".zshrc").exists());
+}
+
+#[test]
+fn leaves_an_old_homerow_binary_and_says_so() {
+    let t = tempfile::tempdir().unwrap();
+    fake_release(t.path(), false);
+    let bin = t.path().join("bin");
+    fs::create_dir_all(&bin).unwrap();
+    fs::write(bin.join("homerow"), "old homerow").unwrap();
+    // one run ends at the profile step, one exits early on PATH
+    let on_path = format!("{}:/usr/bin:/bin", bin.display());
+    let runs: [&[(&str, &str)]; 2] = [
+        &[("SHELL", "/bin/tcsh")],
+        &[("SHELL", "/bin/zsh"), ("PATH", &on_path)],
+    ];
+    for extra in runs {
+        let out = install_with(t.path(), &bin, "Darwin-arm64", extra);
+        assert!(out.status.success(), "{}", text(&out));
+        let note = format!(
+            "the old homerow command is still at {}/homerow",
+            bin.display()
+        );
+        assert!(text(&out).contains(&note), "{}", text(&out));
+        assert_eq!(
+            fs::read_to_string(bin.join("homerow")).unwrap(),
+            "old homerow"
+        );
+    }
+}
+
+#[test]
+fn no_old_binary_means_no_note() {
+    let t = tempfile::tempdir().unwrap();
+    fake_release(t.path(), false);
+    let out = install(t.path(), &t.path().join("bin"), "Darwin-arm64");
+    assert!(!text(&out).contains("old homerow"), "{}", text(&out));
+}
+
+#[test]
+fn profile_from_the_old_installer_gets_no_second_path_line() {
+    let t = tempfile::tempdir().unwrap();
+    fake_release(t.path(), false);
+    let bin = t.path().join("bin");
+    // exactly what the homerow installer wrote
+    let old = format!(
+        "\n# added by the homerow installer\nexport PATH=\"{}:$PATH\"\n",
+        bin.display()
+    );
+    fs::write(t.path().join(".zshrc"), &old).unwrap();
+    let out = install_with(t.path(), &bin, "Darwin-arm64", &[("SHELL", "/bin/zsh")]);
+    assert!(out.status.success(), "{}", text(&out));
+    assert_eq!(fs::read_to_string(t.path().join(".zshrc")).unwrap(), old);
 }

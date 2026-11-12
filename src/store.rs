@@ -1,4 +1,4 @@
-// progress file: ~/.local/share/homerow/progress.json (or $XDG_DATA_HOME/homerow)
+// progress file: ~/.local/share/keyup/progress.json (or $XDG_DATA_HOME/keyup)
 use crate::stats::KeyStats;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -200,12 +200,7 @@ impl Progress {
 }
 
 pub fn default_path() -> PathBuf {
-    let base = std::env::var_os("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".local/share")
-        });
-    base.join("homerow/progress.json")
+    crate::dirs::data_dir(crate::brand::NAME).join("progress.json")
 }
 
 // a missing file is a fresh start. a corrupt one is moved aside, never deleted,

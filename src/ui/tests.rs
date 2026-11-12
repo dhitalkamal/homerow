@@ -154,6 +154,18 @@ fn shortcut_screen_shows_the_card() {
 }
 
 #[test]
+fn the_top_bar_shows_the_app_name() {
+    let (a, _d) = app();
+    let s = screen(&a, 100, 40);
+    // the header is the row with the tabs, the name sits at its left
+    let header = s
+        .lines()
+        .find(|l| l.contains("weak keys"))
+        .unwrap_or_default();
+    assert!(header.contains("keyup"), "{s}");
+}
+
+#[test]
 fn progress_tab_is_a_dashboard() {
     let (mut a, _d) = app();
     a.progress = crate::demo::progress(NOW);

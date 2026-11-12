@@ -1,5 +1,6 @@
 // command line: the github commands (login, logout, sync) or the trainer's
 // options --demo, --file PATH, --decks PATH, --help
+use crate::brand::NAME;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -36,11 +37,10 @@ pub fn parse(args: &[String]) -> Result<Args, String> {
         if cmd == Command::Login && args.get(1).map(String::as_str) == Some("--token") {
             if args.len() > 2 {
                 // a token typed here would stay in your shell history
-                return Err(
+                return Err(format!(
                     "never put the token on the command line, it stays in your shell history. \
-                     run: homerow login --token, then paste it when asked"
-                        .to_string(),
-                );
+                     run: {NAME} login --token, then paste it when asked"
+                ));
             }
             return Ok(Args {
                 command: Some(Command::LoginToken),
@@ -71,7 +71,7 @@ pub fn parse(args: &[String]) -> Result<Args, String> {
                 let path = it.next().ok_or_else(|| "--file needs a path".to_string())?;
                 out.file = Some(PathBuf::from(path));
             }
-            other => return Err(format!("unknown option {other}, see homerow --help")),
+            other => return Err(format!("unknown option {other}, see {NAME} --help")),
         }
     }
     Ok(out)
@@ -112,7 +112,7 @@ mod tests {
         assert_eq!(p(&["--file"]), Err("--file needs a path".to_string()));
         assert_eq!(
             p(&["--bogus"]),
-            Err("unknown option --bogus, see homerow --help".to_string())
+            Err("unknown option --bogus, see keyup --help".to_string())
         );
     }
 
@@ -136,7 +136,7 @@ mod tests {
         );
         assert_eq!(
             p(&["--demo", "sync"]),
-            Err("unknown option sync, see homerow --help".to_string())
+            Err("unknown option sync, see keyup --help".to_string())
         );
     }
 
@@ -148,13 +148,14 @@ mod tests {
         );
         let e = p(&["login", "--token", "ghp_abc"]).unwrap_err();
         assert!(e.contains("shell history"), "{e}");
+        assert!(e.contains("run: keyup login --token"), "{e}");
         assert_eq!(
             p(&["sync", "--token"]),
             Err("sync takes no options".to_string())
         );
         assert_eq!(
             p(&["--token"]),
-            Err("unknown option --token, see homerow --help".to_string())
+            Err("unknown option --token, see keyup --help".to_string())
         );
     }
 

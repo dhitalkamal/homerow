@@ -1,4 +1,4 @@
-# homerow
+# keyup
 
 Terminal trainer for touch typing and Mac shortcuts. One binary, no runtime
 dependencies.
@@ -7,7 +7,7 @@ dependencies.
 
 One line, on macOS or Linux:
 
-    curl -fsSL https://raw.githubusercontent.com/dhitalkamal/homerow/main/install.sh | sh
+    curl -fsSL https://raw.githubusercontent.com/dhitalkamal/keyup/main/install.sh | sh
 
 On Apple Silicon Macs this downloads the latest release, checks it against the
 published SHA-256 checksum, removes the download quarantine flag (the binary is
@@ -19,42 +19,60 @@ line again to update.
 If `~/.local/bin` is not on your PATH yet, the installer adds it to your shell's
 startup file (zsh: `~/.zshrc`, bash: `~/.bash_profile` on macOS or `~/.bashrc`
 on Linux, fish: `config.fish`), once, with a comment saying it came from the
-homerow installer, and tells you which file it changed. Other shells get the
-line printed instead. `HOMEROW_NO_MODIFY_PATH=1` skips this step.
+keyup installer, and tells you which file it changed. Other shells get the
+line printed instead. `KEYUP_NO_MODIFY_PATH=1` skips this step.
 
-Options: `HOMEROW_VERSION=v0.1.0` pins a release, `HOMEROW_INSTALL_DIR=...`
-picks another folder. The checksum catches broken or changed downloads; it
-comes from the same GitHub release, so it does not protect against a
-compromised GitHub account. Read `install.sh` first if you like, it is short.
+Options: `KEYUP_VERSION=v0.3.0` pins a release (v0.3.0 and later),
+`KEYUP_INSTALL_DIR=...` picks another folder. The checksum catches broken or
+changed downloads; it comes from the same GitHub release, so it does not
+protect against a compromised GitHub account. Read `install.sh` first if you
+like, it is short.
 
 ### Manual download (macOS, Apple Silicon)
 
-    curl -L https://github.com/dhitalkamal/homerow/releases/latest/download/homerow-aarch64-apple-darwin.tar.gz | tar xz
-    xattr -d com.apple.quarantine homerow 2>/dev/null
-    mkdir -p ~/.local/bin && mv homerow ~/.local/bin/
+    curl -L https://github.com/dhitalkamal/keyup/releases/latest/download/keyup-aarch64-apple-darwin.tar.gz | tar xz
+    xattr -d com.apple.quarantine keyup 2>/dev/null
+    mkdir -p ~/.local/bin && mv keyup ~/.local/bin/
 
 ### Any platform, from source
 
 With Rust installed (https://rustup.rs):
 
-    cargo install --git https://github.com/dhitalkamal/homerow
+    cargo install --git https://github.com/dhitalkamal/keyup
 
-That puts `homerow` in `~/.cargo/bin`. Works on macOS, Linux and Windows
+That puts `keyup` in `~/.cargo/bin`. Works on macOS, Linux and Windows
 terminals.
 
 To preview with sample data (two weeks of made-up rounds, your real progress is
 not read or changed):
 
-    homerow --demo
+    keyup --demo
 
 To type your own text, pass a file; the code tab then uses it, a few lines at
 a time:
 
-    homerow --file src/main.rs
+    keyup --file src/main.rs
 
 Tabs become 4 spaces, shared indentation is removed, control characters are
 stripped (a file cannot send escape codes to your terminal), and lines with
 characters a US keyboard cannot type are skipped.
+
+### coming from homerow
+
+keyup used to be called homerow. On its first start keyup copies your
+progress, badge link and decks from the homerow folders
+(`~/.local/share/homerow` and `~/.config/homerow`) into the keyup ones and says
+so. The homerow folders stay as they are, as a backup; delete them when you
+like.
+
+If you had the GitHub badge, keyup also moves the saved login from the
+`homerow` keychain entry to a `keyup` one, then deletes the old entry so no
+second copy of the token is left behind. macOS asks once to let keyup read
+it: allow it. Your badge keeps working, and old links to
+github.com/dhitalkamal/homerow lead here.
+
+The installer leaves the old `homerow` command in place and tells you how to
+remove it. Its `HOMEROW_*` settings are now `KEYUP_*`.
 
 ## modes
 
@@ -123,8 +141,8 @@ and the line under the keyboard names the finger.
 
 On any results screen press c to copy a short card for friends:
 
-    homerow daily 2026-11-07: 52 wpm, 97% accuracy
-    streak 4 days, try it: github.com/dhitalkamal/homerow
+    keyup daily 2026-11-07: 52 wpm, 97% accuracy
+    streak 4 days, try it: github.com/dhitalkamal/keyup
 
 It uses your system clipboard tool (pbcopy on macOS, wl-copy, xclip or xsel on
 Linux, clip on Windows), run directly without a shell. Without one it falls
@@ -135,49 +153,49 @@ many others support.
 
 Show your typing speed on your GitHub profile:
 
-    homerow login --token
+    keyup login --token
 
-homerow prints a link to GitHub's new-token page with only the `gist` scope
-ticked (https://github.com/settings/tokens/new?scopes=gist&description=homerow).
-Generate the token there, copy it, and paste it at homerow's hidden prompt.
-The `gist` scope lets homerow create and edit your gists, nothing else on your
-account. homerow makes one secret gist that holds the badge and prints a line
+keyup prints a link to GitHub's new-token page with only the `gist` scope
+ticked (https://github.com/settings/tokens/new?scopes=gist&description=keyup).
+Generate the token there, copy it, and paste it at keyup's hidden prompt.
+The `gist` scope lets keyup create and edit your gists, nothing else on your
+account. keyup makes one secret gist that holds the badge and prints a line
 for your profile README:
 
-    [![typing speed](https://img.shields.io/endpoint?url=...)](https://github.com/dhitalkamal/homerow)
+    [![typing speed](https://img.shields.io/endpoint?url=...)](https://github.com/dhitalkamal/keyup)
 
-You can also pipe the token in, like `cat token.txt | homerow login --token`.
+You can also pipe the token in, like `cat token.txt | keyup login --token`.
 Never put the token on the command line itself: it would stay in your shell
-history, so homerow refuses it there.
+history, so keyup refuses it there.
 
-Plain `homerow login` signs in through the browser instead (a one-time code
+Plain `keyup login` signs in through the browser instead (a one-time code
 you approve at github.com/login/device, same `gist` scope, no token to copy).
-It needs homerow's GitHub OAuth app, which is not registered yet, so for now
-it points you to `homerow login --token`.
+It needs keyup's GitHub OAuth app, which is not registered yet, so for now
+it points you to `keyup login --token`.
 
-homerow checks what a classic token may do and refuses one with any scope
+keyup checks what a classic token may do and refuses one with any scope
 beyond `gist` (like `repo`), since a token that can change your repositories
 should not sit in a typing app's keychain entry. Fine-grained tokens do not
-report their permissions, so homerow accepts them and reminds you to give them
+report their permissions, so keyup accepts them and reminds you to give them
 only the Gists permission (read and write). When a token expires,
-`homerow sync` tells you; run `homerow login --token` again with a new one.
+`keyup sync` tells you; run `keyup login --token` again with a new one.
 
 The badge shows your recent baseline speed, the average of your last 3
-baseline rounds, like "typing 52 wpm". It updates when you quit homerow, and
+baseline rounds, like "typing 52 wpm". It updates when you quit keyup, and
 only when the number changed. A quit without internet stays silent and tries
-again next time. `homerow sync` updates it right away and says what went wrong
+again next time. `keyup sync` updates it right away and says what went wrong
 if something did. GitHub and shields.io cache the badge for a few minutes.
 
 The GitHub token is kept in your system keychain (macOS Keychain, Windows
 Credential Manager, or the Secret Service on Linux, such as GNOME Keyring or
 KWallet), never in a file. `github.json` next to your progress file only says
 which gist holds the badge. On macOS the keychain may ask for permission again
-after homerow is updated, since the binary is not Apple signed; Always Allow
+after keyup is updated, since the binary is not Apple signed; Always Allow
 stops the question until the next update.
 
-`homerow logout` removes the token and that file. The gist stays on GitHub
+`keyup logout` removes the token and that file. The gist stays on GitHub
 (the logout message links to it, delete it there if you like), and
-https://github.com/settings/applications revokes homerow's access completely.
+https://github.com/settings/applications revokes keyup's access completely.
 Secret gists are unlisted, not private: anyone with the link can see the badge
 file, which is what a badge is for.
 
@@ -204,16 +222,16 @@ terminals, ctrl+= or ctrl+shift+= elsewhere); the layout adapts.
 In kitty 0.40 or newer, ctrl+] zooms the typing text in and ctrl+[ zooms it
 out: normal, 2x, 3x. Only the text you type grows; the rest of the screen and
 your other terminal windows stay as they are. It uses kitty's text sizing
-protocol, so homerow checks for support at startup; in other terminals the
+protocol, so keyup checks for support at startup; in other terminals the
 keys only show a short note and the settings row reads "needs kitty".
 
 Careful outside kitty: many terminals send ctrl+[ as the esc key, and esc
-quits homerow. In kitty the two keys stay separate.
+quits keyup. In kitty the two keys stay separate.
 
 ## size and terminal zoom
 
 Terminal zoom (whole window) is your terminal's job: in kitty, cmd+= and cmd+- change the font size.
-homerow redraws to fit whatever size it gets:
+keyup redraws to fit whatever size it gets:
 
 - plenty of room: full keyboard and hands
 - a bit less: full keyboard, hands hidden
@@ -243,7 +261,7 @@ Shortcut keys: press the real combo. Space shows the answer (counts as a miss).
 
 ## your own decks
 
-Write your own shortcuts in `~/.config/homerow/decks.txt` (or pass
+Write your own shortcuts in `~/.config/keyup/decks.txt` (or pass
 `--decks PATH`) and they show up as decks on the shortcuts tab and the
 progress tab:
 
@@ -270,16 +288,16 @@ think of the keys, press Space, then y or n.
 ## terminal setup for cmd and opt
 
 - cmd: needs a terminal that speaks the kitty keyboard protocol (kitty,
-  WezTerm, Ghostty, recent iTerm2 with the CSI u option on). homerow turns it on
+  WezTerm, Ghostty, recent iTerm2 with the CSI u option on). keyup turns it on
   when available. Without it, cmd cards still work through Space and y/n.
 - opt: kitty sends special characters for opt+letter unless you set
   `macos_option_as_alt both` in kitty.conf. Arrows and delete work either way.
 - Any combo your terminal binds itself (kitty uses cmd+t, cmd+w, cmd+c and
-  more) never reaches homerow. Use Space to reveal those.
+  more) never reaches keyup. Use Space to reveal those.
 
 ## progress
 
-Saved to `~/.local/share/homerow/progress.json` (or `$XDG_DATA_HOME/homerow`)
+Saved to `~/.local/share/keyup/progress.json` (or `$XDG_DATA_HOME/keyup`)
 after every round and card. An unreadable file is moved aside as
 `progress.json.bad-<time>`, never deleted.
 

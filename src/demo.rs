@@ -1,4 +1,4 @@
-// sample progress for `homerow --demo`: two weeks of made-up rounds so the
+// sample progress for `keyup --demo`: two weeks of made-up rounds so the
 // dashboard can be previewed. never written to the real progress file.
 use crate::cards::KNOWN_BOX;
 use crate::content::CARDS;
