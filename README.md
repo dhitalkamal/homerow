@@ -135,24 +135,25 @@ many others support.
 
 Show your typing speed on your GitHub profile:
 
-    homerow login
-
-homerow shows a one-time code, opens github.com/login/device when you press
-Enter, and waits while you approve it there. It asks for the `gist` scope only
-(create and edit your gists, nothing else on your account), makes one secret
-gist that holds the badge, and prints a line for your profile README:
-
-    [![typing speed](https://img.shields.io/endpoint?url=...)](https://github.com/dhitalkamal/homerow)
-
-Prefer not to sign in through the browser? Make a token yourself and paste it:
-
     homerow login --token
 
 homerow prints a link to GitHub's new-token page with only the `gist` scope
-ticked (https://github.com/settings/tokens/new?scopes=gist&description=homerow),
-then asks for the token at a hidden prompt. You can also pipe it in, like
-`cat token.txt | homerow login --token`. Never put the token on the command
-line itself: it would stay in your shell history, so homerow refuses it there.
+ticked (https://github.com/settings/tokens/new?scopes=gist&description=homerow).
+Generate the token there, copy it, and paste it at homerow's hidden prompt.
+The `gist` scope lets homerow create and edit your gists, nothing else on your
+account. homerow makes one secret gist that holds the badge and prints a line
+for your profile README:
+
+    [![typing speed](https://img.shields.io/endpoint?url=...)](https://github.com/dhitalkamal/homerow)
+
+You can also pipe the token in, like `cat token.txt | homerow login --token`.
+Never put the token on the command line itself: it would stay in your shell
+history, so homerow refuses it there.
+
+Plain `homerow login` signs in through the browser instead (a one-time code
+you approve at github.com/login/device, same `gist` scope, no token to copy).
+It needs homerow's GitHub OAuth app, which is not registered yet, so for now
+it points you to `homerow login --token`.
 
 homerow checks what a classic token may do and refuses one with any scope
 beyond `gist` (like `repo`), since a token that can change your repositories
