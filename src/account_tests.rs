@@ -80,7 +80,7 @@ fn sync_without_login_or_token() {
     save_link(&p, &link("40 wpm")).unwrap();
     let e = sync(&mut http, &FakeSecrets::default(), &p, Some(52)).unwrap_err();
     assert_eq!(e, SyncError::NoToken);
-    assert!(e.loud() && e.to_string().contains("homerow login"), "{e}");
+    assert!(e.loud() && e.to_string().contains("keyup login"), "{e}");
 }
 
 #[test]

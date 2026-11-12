@@ -9,7 +9,12 @@ pub struct Keychain {
 
 impl Keychain {
     pub fn new() -> Result<Keychain, String> {
-        let entry = keyring::Entry::new(NAME, "github").map_err(|e| e.to_string())?;
+        Keychain::named(NAME)
+    }
+
+    // the entry under another app name: the rename carries the old one over
+    pub fn named(app: &str) -> Result<Keychain, String> {
+        let entry = keyring::Entry::new(app, "github").map_err(|e| e.to_string())?;
         Ok(Keychain { entry })
     }
 }
@@ -49,5 +54,8 @@ mod tests {
         k.delete().unwrap();
         assert_eq!(k.get(), Ok(None));
         assert_eq!(k.delete(), Ok(()));
+        // the entry from before the rename opens the same way
+        let old = Keychain::named(crate::brand::OLD_NAME).unwrap();
+        assert_eq!(old.get(), Ok(None));
     }
 }

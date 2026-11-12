@@ -1,10 +1,10 @@
 [package]
-name = "homerow"
-version = "0.2.0"
+name = "keyup"
+version = "0.3.0"
 edition = "2024"
 description = "Terminal trainer for touch typing and Mac shortcuts"
 license = "MIT"
-repository = "https://github.com/dhitalkamal/homerow"
+repository = "https://github.com/dhitalkamal/keyup"
 readme = "README.md"
 keywords = ["typing", "tui", "terminal", "shortcuts", "practice"]
 categories = ["command-line-utilities"]
