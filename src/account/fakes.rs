@@ -21,6 +21,7 @@ impl FakeHttp {
                     Ok(Reply {
                         status: *s,
                         body: b.to_string(),
+                        ..Default::default()
                     })
                 })
                 .collect(),

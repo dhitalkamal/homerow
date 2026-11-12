@@ -27,6 +27,7 @@ fn login_needs_a_client_id() {
     )
     .unwrap_err();
     assert!(e.contains("not set up"), "{e}");
+    assert!(e.contains("login --token"), "{e}");
     assert!(http.sent.is_empty());
 }
 
@@ -195,6 +196,7 @@ fn a_network_blip_while_polling_is_tolerated() {
         http.replies.push_back(Ok(Reply {
             status: s,
             body: b.into(),
+            ..Default::default()
         }));
     }
     assert!(

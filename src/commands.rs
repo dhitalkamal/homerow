@@ -4,11 +4,13 @@
 use crate::account::{self, LoginUi, SyncError, Synced};
 use crate::brand::{CLIENT_ID_ENV, GITHUB_CLIENT_ID};
 use crate::cli::Command;
-use crate::github::badge_message;
+use crate::github::{self, badge_message};
 use crate::keychain::Keychain;
 use crate::net::Net;
 use crate::store::{self, Progress};
-use std::io::BufRead;
+use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use ratatui::crossterm::terminal;
+use std::io::{BufRead, IsTerminal, Write};
 use std::path::Path;
 use std::process::Stdio;
 use std::time::Duration;
@@ -22,6 +24,37 @@ pub fn client_id(env: Option<String>) -> String {
     env.map(|v| v.trim().to_string())
         .filter(|v| !v.is_empty())
         .unwrap_or_else(|| GITHUB_CLIENT_ID.to_string())
+}
+
+// one key at the hidden token prompt
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Key {
+    Char(char),
+    Back,
+    Enter,
+    Cancel,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Edit {
+    More,
+    Done,
+    Cancelled,
+}
+
+pub fn edit(buf: &mut String, key: Key) -> Edit {
+    match key {
+        Key::Char(c) => {
+            buf.push(c);
+            Edit::More
+        }
+        Key::Back => {
+            buf.pop();
+            Edit::More
+        }
+        Key::Enter => Edit::Done,
+        Key::Cancel => Edit::Cancelled,
+    }
 }
 
 // what to print after a sync. on quit it only speaks up for a new badge or
@@ -47,6 +80,7 @@ pub fn run(cmd: Command) -> i32 {
     let wpm = account::badge_wpm(&p);
     let done = match cmd {
         Command::Login => login(&link, wpm),
+        Command::LoginToken => login_token(&link, wpm),
         Command::Sync => sync(&link, wpm),
         Command::Logout => logout(&link),
     };
@@ -84,6 +118,61 @@ fn login(link: &Path, wpm: Option<u32>) -> Result<(), String> {
     let id = client_id(std::env::var(CLIENT_ID_ENV).ok());
     let mut net = Net::new(LOGIN_TIMEOUT);
     account::login(&mut net, &keychain()?, &mut Terminal, &id, link, wpm).map(|_| ())
+}
+
+fn login_token(link: &Path, wpm: Option<u32>) -> Result<(), String> {
+    // the keychain first, so nobody pastes a token that cannot be kept
+    let keychain = keychain()?;
+    println!(
+        "make a token with only the gist scope ticked: {}",
+        github::token_page()
+    );
+    let token = read_token()?;
+    let mut net = Net::new(LOGIN_TIMEOUT);
+    account::login_with_token(&mut net, &keychain, &mut Terminal, &token, link, wpm).map(|_| ())
+}
+
+// asks for the token without showing it. piped input (cat token.txt | ...)
+// is read as one line instead.
+fn read_token() -> Result<String, String> {
+    if !std::io::stdin().is_terminal() {
+        let mut line = String::new();
+        std::io::stdin()
+            .read_line(&mut line)
+            .map_err(|e| e.to_string())?;
+        return Ok(line);
+    }
+    print!("paste your token (it stays hidden), then press Enter: ");
+    let _ = std::io::stdout().flush();
+    terminal::enable_raw_mode().map_err(|e| e.to_string())?;
+    let mut buf = String::new();
+    let done = loop {
+        let key = match event::read() {
+            Ok(Event::Key(k)) if k.kind != KeyEventKind::Release => prompt_key(k),
+            Ok(_) => None,
+            Err(e) => break Err(e.to_string()),
+        };
+        match key.map(|k| edit(&mut buf, k)) {
+            Some(Edit::Done) => break Ok(()),
+            Some(Edit::Cancelled) => break Err("login cancelled".to_string()),
+            _ => {}
+        }
+    };
+    let _ = terminal::disable_raw_mode();
+    println!();
+    done.map(|_| buf)
+}
+
+// raw mode turns ctrl+c into a key, so it cancels here like esc
+fn prompt_key(k: KeyEvent) -> Option<Key> {
+    match k.code {
+        KeyCode::Enter => Some(Key::Enter),
+        KeyCode::Backspace => Some(Key::Back),
+        KeyCode::Esc => Some(Key::Cancel),
+        KeyCode::Char('c') if k.modifiers.contains(KeyModifiers::CONTROL) => Some(Key::Cancel),
+        KeyCode::Char(c) => Some(Key::Char(c)),
+        _ => None,
+    }
 }
 
 fn sync(link: &Path, wpm: Option<u32>) -> Result<(), String> {
@@ -148,6 +237,18 @@ fn open_browser(url: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hidden_input_editing() {
+        let mut b = String::new();
+        assert_eq!(edit(&mut b, Key::Char('g')), Edit::More);
+        edit(&mut b, Key::Char('h'));
+        edit(&mut b, Key::Back);
+        assert_eq!(b, "g");
+        assert_eq!(edit(&mut b, Key::Enter), Edit::Done);
+        assert_eq!(edit(&mut b, Key::Cancel), Edit::Cancelled);
+        assert_eq!(edit(&mut String::new(), Key::Back), Edit::More);
+    }
 
     #[test]
     fn env_client_id_wins_when_set() {

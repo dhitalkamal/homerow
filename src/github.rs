@@ -23,10 +23,13 @@ pub struct Request {
     pub body: Option<(&'static str, String)>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Reply {
     pub status: u16,
     pub body: String,
+    // x-oauth-scopes: what a classic token may do. fine-grained tokens and
+    // the login endpoints send none.
+    pub scopes: Option<String>,
 }
 
 // what github hands back to start a device login
@@ -271,6 +274,9 @@ pub fn readme_line(user: &str, id: &str, file: &str) -> String {
 pub fn safe_to_open(url: &str) -> bool {
     url.starts_with("https://github.com/")
 }
+
+mod token;
+pub use token::{Scopes, read_user, scope_check, token_ok, token_page, user_request};
 
 #[cfg(test)]
 #[path = "github_tests.rs"]

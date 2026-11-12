@@ -2,7 +2,7 @@
 // then make (or reuse) the badge gist and keep the token in the keychain
 use super::{Http, Link, LoginUi, Secrets, badge_file, load_link, save_link};
 use crate::brand::NAME;
-use crate::github::{self, ApiError, Gist, Poll};
+use crate::github::{self, ApiError, Gist, Poll, Scopes};
 use std::path::Path;
 
 // a few dropped polls in a row are a dead connection, not a blip
@@ -17,7 +17,9 @@ pub fn login(
     wpm: Option<u32>,
 ) -> Result<Link, String> {
     if client_id.is_empty() {
-        return Err("github login is not set up in this build yet".to_string());
+        return Err(format!(
+            "github login is not set up in this build yet, use: {NAME} login --token"
+        ));
     }
     let reply = http.send(&github::device_code_request(client_id))?;
     let code = github::read_device_code(&reply)?;
@@ -31,9 +33,22 @@ pub fn login(
     ui.open(&code.verification_uri);
     let token = poll(http, ui, client_id, &code)?;
 
+    finish(http, secrets, ui, &token, link_path, wpm)
+}
+
+// the part both logins share: make or reuse the badge gist, remember it,
+// keep the token in the keychain and print the readme line
+fn finish(
+    http: &mut dyn Http,
+    secrets: &dyn Secrets,
+    ui: &mut dyn LoginUi,
+    token: &str,
+    link_path: &Path,
+    wpm: Option<u32>,
+) -> Result<Link, String> {
     let file = load_link(link_path).map_or_else(badge_file, |l| l.file);
     let content = github::badge_json(wpm);
-    let gist = badge_gist(http, &token, link_path, &file, &content)?;
+    let gist = badge_gist(http, token, link_path, &file, &content)?;
     let link = Link {
         user: gist.owner,
         gist: gist.id,
@@ -45,7 +60,7 @@ pub fn login(
     save_link(link_path, &link)
         .map_err(|e| format!("could not save {}: {e}", link_path.display()))?;
     secrets
-        .set(&token)
+        .set(token)
         .map_err(|e| format!("could not save the login in your keychain: {e}"))?;
     ui.say(&format!(
         "signed in as {}, badge: typing {}",
@@ -134,6 +149,56 @@ fn api_message(e: ApiError) -> String {
     }
 }
 
+// login with a token you made on github and pasted in, no client id needed
+pub fn login_with_token(
+    http: &mut dyn Http,
+    secrets: &dyn Secrets,
+    ui: &mut dyn LoginUi,
+    token: &str,
+    link_path: &Path,
+    wpm: Option<u32>,
+) -> Result<Link, String> {
+    let token = token.trim();
+    if !github::token_ok(token) {
+        return Err("that does not look like a github token".to_string());
+    }
+    let reply = http.send(&github::user_request(token))?;
+    github::read_user(&reply).map_err(|e| match e {
+        ApiError::Unauthorized => "github did not accept that token".to_string(),
+        other => api_message(other),
+    })?;
+    let page = github::token_page();
+    let fine_grained = match github::scope_check(token, reply.scopes.as_deref()) {
+        Scopes::GistOnly => false,
+        Scopes::Unknown => true,
+        Scopes::Missing => {
+            return Err(format!(
+                "that token has no gist scope. make one with only gist ticked: {page}"
+            ));
+        }
+        Scopes::Broad(extra) => {
+            return Err(format!(
+                "that token can do more than {NAME} needs ({}). \
+                 make one with only gist ticked: {page}",
+                extra.join(", ")
+            ));
+        }
+    };
+    if fine_grained {
+        ui.say("fine-grained token: give it only the Gists permission (read and write)");
+    }
+    finish(http, secrets, ui, token, link_path, wpm).map_err(|e| {
+        if fine_grained {
+            format!("{e}. a fine-grained token needs the Gists permission set to read and write")
+        } else {
+            e
+        }
+    })
+}
+
 #[cfg(test)]
 #[path = "login_tests.rs"]
 mod tests;
+#[cfg(test)]
+#[path = "token_tests.rs"]
+mod token_tests;

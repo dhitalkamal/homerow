@@ -90,6 +90,7 @@ fn sync_failures_keep_the_old_badge_for_a_retry() {
             Ok(Reply {
                 status: 401,
                 body: "{}".into(),
+                ..Default::default()
             }),
             SyncError::Expired,
             true,
@@ -98,6 +99,7 @@ fn sync_failures_keep_the_old_badge_for_a_retry() {
             Ok(Reply {
                 status: 404,
                 body: "{}".into(),
+                ..Default::default()
             }),
             SyncError::Gone,
             true,

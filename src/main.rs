@@ -80,7 +80,7 @@ fn now_ms() -> u64 {
 const HELP: &str = "homerow - typing and mac shortcut trainer
 
 usage: homerow [--demo] [--file PATH] [--decks PATH]
-       homerow login | sync | logout
+       homerow login [--token] | sync | logout
 
   --demo        start with two weeks of sample progress, kept in a temp file.
                 your real progress is not read or changed.
@@ -92,6 +92,9 @@ usage: homerow [--demo] [--file PATH] [--decks PATH]
   login         sign in with github and put a typing speed badge on your
                 profile (a secret gist holds it, the login sits in your
                 system keychain).
+  login --token same, with a token you make on github (gist scope only)
+                instead of the browser sign-in. it is pasted at a hidden
+                prompt, never typed on the command line.
   sync          update the badge now; it also updates when you quit.
   logout        forget the github login on this computer.
 

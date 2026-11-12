@@ -168,7 +168,7 @@ pub fn logout(secrets: &dyn Secrets, link_path: &Path) -> Result<String, String>
 }
 
 mod login;
-pub use login::login;
+pub use login::{login, login_with_token};
 
 #[cfg(test)]
 #[path = "account/fakes.rs"]

@@ -144,6 +144,23 @@ gist that holds the badge, and prints a line for your profile README:
 
     [![typing speed](https://img.shields.io/endpoint?url=...)](https://github.com/dhitalkamal/homerow)
 
+Prefer not to sign in through the browser? Make a token yourself and paste it:
+
+    homerow login --token
+
+homerow prints a link to GitHub's new-token page with only the `gist` scope
+ticked (https://github.com/settings/tokens/new?scopes=gist&description=homerow),
+then asks for the token at a hidden prompt. You can also pipe it in, like
+`cat token.txt | homerow login --token`. Never put the token on the command
+line itself: it would stay in your shell history, so homerow refuses it there.
+
+homerow checks what a classic token may do and refuses one with any scope
+beyond `gist` (like `repo`), since a token that can change your repositories
+should not sit in a typing app's keychain entry. Fine-grained tokens do not
+report their permissions, so homerow accepts them and reminds you to give them
+only the Gists permission (read and write). When a token expires,
+`homerow sync` tells you; run `homerow login --token` again with a new one.
+
 The badge shows your recent baseline speed, the average of your last 3
 baseline rounds, like "typing 52 wpm". It updates when you quit homerow, and
 only when the number changed. A quit without internet stays silent and tries

@@ -49,11 +49,20 @@ impl Http for Net {
         };
         let mut resp = sent.map_err(|e| e.to_string())?;
         let status = resp.status().as_u16();
+        let scopes = resp
+            .headers()
+            .get("x-oauth-scopes")
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_string);
         let body = resp
             .body_mut()
             .read_to_string()
             .map_err(|e| e.to_string())?;
-        Ok(Reply { status, body })
+        Ok(Reply {
+            status,
+            body,
+            scopes,
+        })
     }
 }
 
@@ -67,7 +76,11 @@ mod tests {
 
     // answers one request with the given status line and body, and hands
     // back the raw request it got
-    fn serve_once(status: &'static str, body: &'static str) -> (String, mpsc::Receiver<String>) {
+    fn serve_once(
+        status: &'static str,
+        headers: &'static str,
+        body: &'static str,
+    ) -> (String, mpsc::Receiver<String>) {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
         let (tx, rx) = mpsc::channel();
@@ -92,7 +105,7 @@ mod tests {
                 }
             }
             let reply = format!(
-                "HTTP/1.1 {status}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                "HTTP/1.1 {status}\r\n{headers}content-length: {}\r\nconnection: close\r\n\r\n{body}",
                 body.len()
             );
             s.write_all(reply.as_bytes()).unwrap();
@@ -103,7 +116,7 @@ mod tests {
 
     #[test]
     fn sends_method_headers_and_body() {
-        let (base, got) = serve_once("200 OK", r#"{"ok":1}"#);
+        let (base, got) = serve_once("200 OK", "", r#"{"ok":1}"#);
         let req = Request {
             method: "PATCH",
             url: format!("{base}/gists/x"),
@@ -116,7 +129,8 @@ mod tests {
             r,
             Reply {
                 status: 200,
-                body: r#"{"ok":1}"#.into()
+                body: r#"{"ok":1}"#.into(),
+                ..Default::default()
             }
         );
         let raw = got.recv().unwrap();
@@ -131,7 +145,7 @@ mod tests {
 
     #[test]
     fn error_statuses_come_back_as_replies() {
-        let (base, _got) = serve_once("401 Unauthorized", r#"{"message":"Bad credentials"}"#);
+        let (base, _got) = serve_once("401 Unauthorized", "", r#"{"message":"Bad credentials"}"#);
         let req = Request {
             method: "GET",
             url: format!("{base}/user"),
@@ -146,7 +160,7 @@ mod tests {
 
     #[test]
     fn login_posts_carry_no_token() {
-        let (base, got) = serve_once("200 OK", "{}");
+        let (base, got) = serve_once("200 OK", "", "{}");
         let req = Request {
             method: "POST",
             url: format!("{base}/login/device/code"),
@@ -161,6 +175,20 @@ mod tests {
             low.contains("content-type: application/x-www-form-urlencoded"),
             "{low}"
         );
+    }
+
+    #[test]
+    fn reads_the_token_scopes_header() {
+        let (base, _got) = serve_once("200 OK", "X-OAuth-Scopes: gist, repo\r\n", "{}");
+        let req = Request {
+            method: "GET",
+            url: format!("{base}/user"),
+            accept: "application/vnd.github+json",
+            token: Some("tok".into()),
+            body: None,
+        };
+        let r = Net::new(5).send(&req).unwrap();
+        assert_eq!(r.scopes.as_deref(), Some("gist, repo"));
     }
 
     #[test]

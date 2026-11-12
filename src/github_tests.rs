@@ -4,6 +4,7 @@ fn reply(status: u16, body: &str) -> Reply {
     Reply {
         status,
         body: body.to_string(),
+        ..Default::default()
     }
 }
 
@@ -216,4 +217,63 @@ fn only_github_pages_are_opened() {
     assert!(!safe_to_open("http://github.com/login/device"));
     assert!(!safe_to_open("https://github.com.evil.example/login"));
     assert!(!safe_to_open("file:///etc/passwd"));
+}
+
+#[test]
+fn token_format() {
+    assert!(token_ok(&format!("ghp_{}", "a".repeat(36))));
+    assert!(token_ok(&format!("github_pat_{}", "A1_".repeat(25))));
+    assert!(!token_ok("short"));
+    assert!(!token_ok(&format!("ghp_{} x", "a".repeat(36))), "no spaces");
+    assert!(!token_ok(&format!("ghp_{}\u{1b}", "a".repeat(36))));
+    assert!(!token_ok(&"a".repeat(300)));
+}
+
+#[test]
+fn scopes_of_classic_tokens_are_checked() {
+    let classic = format!("ghp_{}", "a".repeat(36));
+    assert_eq!(scope_check(&classic, Some("gist")), Scopes::GistOnly);
+    assert_eq!(
+        scope_check(&classic, Some("gist, repo, delete_repo")),
+        Scopes::Broad(vec!["repo".into(), "delete_repo".into()])
+    );
+    assert_eq!(scope_check(&classic, Some("")), Scopes::Missing);
+    assert_eq!(scope_check(&classic, Some("read:user")), Scopes::Missing);
+    assert_eq!(scope_check(&classic, None), Scopes::Unknown);
+}
+
+#[test]
+fn fine_grained_tokens_cannot_be_checked() {
+    let fine = format!("github_pat_{}", "A".repeat(70));
+    assert_eq!(scope_check(&fine, Some("")), Scopes::Unknown);
+    assert_eq!(scope_check(&fine, None), Scopes::Unknown);
+}
+
+#[test]
+fn user_request_and_reply() {
+    let r = user_request("tok");
+    assert_eq!(
+        (r.method, r.url.as_str()),
+        ("GET", "https://api.github.com/user")
+    );
+    assert_eq!(r.accept, "application/vnd.github+json");
+    assert_eq!(r.token.as_deref(), Some("tok"));
+    assert_eq!(r.body, None);
+    assert_eq!(
+        read_user(&reply(200, r#"{"login":"octocat"}"#)),
+        Ok("octocat".into())
+    );
+    assert_eq!(read_user(&reply(401, "{}")), Err(ApiError::Unauthorized));
+    assert!(read_user(&reply(200, r#"{"login":"a b"}"#)).is_err());
+}
+
+#[test]
+fn token_page_makes_a_gist_only_classic_token() {
+    assert_eq!(
+        token_page(),
+        format!(
+            "https://github.com/settings/tokens/new?scopes=gist&description={}",
+            crate::brand::NAME
+        )
+    );
 }

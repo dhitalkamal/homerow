@@ -5,6 +5,8 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Command {
     Login,
+    // login with a pasted github token instead of the device flow
+    LoginToken,
     Logout,
     Sync,
 }
@@ -31,6 +33,20 @@ pub fn parse(args: &[String]) -> Result<Args, String> {
     // a command comes first and is the whole command line. only the first
     // word counts, so `--file login` still means a file named login.
     if let Some((word, cmd)) = args.first().and_then(|a| Some((a, command(a)?))) {
+        if cmd == Command::Login && args.get(1).map(String::as_str) == Some("--token") {
+            if args.len() > 2 {
+                // a token typed here would stay in your shell history
+                return Err(
+                    "never put the token on the command line, it stays in your shell history. \
+                     run: homerow login --token, then paste it when asked"
+                        .to_string(),
+                );
+            }
+            return Ok(Args {
+                command: Some(Command::LoginToken),
+                ..Args::default()
+            });
+        }
         if args.len() > 1 {
             return Err(format!("{word} takes no options"));
         }
@@ -121,6 +137,24 @@ mod tests {
         assert_eq!(
             p(&["--demo", "sync"]),
             Err("unknown option sync, see homerow --help".to_string())
+        );
+    }
+
+    #[test]
+    fn login_with_a_pasted_token() {
+        assert_eq!(
+            p(&["login", "--token"]).unwrap().command,
+            Some(Command::LoginToken)
+        );
+        let e = p(&["login", "--token", "ghp_abc"]).unwrap_err();
+        assert!(e.contains("shell history"), "{e}");
+        assert_eq!(
+            p(&["sync", "--token"]),
+            Err("sync takes no options".to_string())
+        );
+        assert_eq!(
+            p(&["--token"]),
+            Err("unknown option --token, see homerow --help".to_string())
         );
     }
 
